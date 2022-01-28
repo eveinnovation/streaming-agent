@@ -1,4 +1,4 @@
-package bbm.webrtc.demo.config;
+package com.eveinnovation.streamingplatform.config;
 
 import com.corundumstudio.socketio.Configuration;
 import com.corundumstudio.socketio.SocketConfig;

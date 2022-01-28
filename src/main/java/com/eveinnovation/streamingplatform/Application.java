@@ -1,4 +1,4 @@
-package bbm.webrtc.demo;
+package com.eveinnovation.streamingplatform;
 
 import com.corundumstudio.socketio.SocketIOServer;
 import org.springframework.beans.factory.annotation.Autowired;

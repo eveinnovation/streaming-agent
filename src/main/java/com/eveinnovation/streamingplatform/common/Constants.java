@@ -1,4 +1,4 @@
-package bbm.webrtc.demo.common;
+package com.eveinnovation.streamingplatform.common;
 
 /**
  * @author bbm

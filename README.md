@@ -1,4 +1,4 @@
-# Fesaid Spring Demo
+# Streaming platform
 
 ## Profiles
 

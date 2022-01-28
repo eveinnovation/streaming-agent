@@ -1,9 +1,9 @@
-package bbm.webrtc.demo.handler;
+package com.eveinnovation.streamingplatform.handler;
 
-import bbm.webrtc.demo.common.Constants;
-import bbm.webrtc.demo.common.NamedThreadFactory;
-import bbm.webrtc.demo.config.WebRtcTurnConfig;
-import bbm.webrtc.demo.use.UseContext;
+import com.eveinnovation.streamingplatform.common.Constants;
+import com.eveinnovation.streamingplatform.common.NamedThreadFactory;
+import com.eveinnovation.streamingplatform.config.WebRtcTurnConfig;
+import com.eveinnovation.streamingplatform.use.UseContext;
 import bbm.webrtc.rtc4j.core.DataChannel;
 import bbm.webrtc.rtc4j.core.RTC;
 import bbm.webrtc.rtc4j.core.audio.AudioCapturer;

@@ -1,4 +1,4 @@
-package bbm.webrtc.demo.common;
+package com.eveinnovation.streamingplatform.common;
 
 import io.netty.util.concurrent.FastThreadLocalThread;
 import java.util.concurrent.ThreadFactory;

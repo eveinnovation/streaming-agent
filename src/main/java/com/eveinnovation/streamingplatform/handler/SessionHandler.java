@@ -1,4 +1,4 @@
-package bbm.webrtc.demo.handler;
+package com.eveinnovation.streamingplatform.handler;
 
 import com.corundumstudio.socketio.SocketIOClient;
 import com.corundumstudio.socketio.annotation.OnConnect;

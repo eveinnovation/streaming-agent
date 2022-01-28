@@ -1,4 +1,4 @@
-package bbm.webrtc.demo.config;
+package com.eveinnovation.streamingplatform.config;
 
 import bbm.webrtc.rtc4j.model.Turn;
 import java.util.List;

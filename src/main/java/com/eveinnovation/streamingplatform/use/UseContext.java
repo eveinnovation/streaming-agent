@@ -1,4 +1,4 @@
-package bbm.webrtc.demo.use;
+package com.eveinnovation.streamingplatform.use;
 
 import bbm.webrtc.rtc4j.core.DataChannel;
 import bbm.webrtc.rtc4j.core.PeerConnection;
