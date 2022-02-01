@@ -50,6 +50,11 @@
             <version>${ffmpeg-platform-gpl.version}</version>
         </dependency>
         <dependency>
+            <groupId>org.bytedeco</groupId>
+            <artifactId>javacv-platform</artifactId>
+            <version>1.5.6</version>
+        </dependency>
+        <dependency>
             <groupId>bbm.webrtc</groupId>
             <artifactId>rtc4j</artifactId>
             <version>1.0.0</version>

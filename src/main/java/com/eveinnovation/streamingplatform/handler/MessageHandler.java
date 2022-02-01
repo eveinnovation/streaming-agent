@@ -18,6 +18,8 @@ import bbm.webrtc.rtc4j.model.VideoFrame;
 import com.corundumstudio.socketio.SocketIOClient;
 import com.corundumstudio.socketio.annotation.OnDisconnect;
 import com.corundumstudio.socketio.annotation.OnEvent;
+
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -48,6 +50,7 @@ public class MessageHandler {
     private static final int MAX_PORT = 51000;
     private static final boolean HARDWARE_ACCELERATE = true;
     private static final int MAX_BIT_RATE = 2 * 1024 * 1024;
+    private static int f_idx = 0;
 
     @Autowired
     private WebRtcTurnConfig webRtcTurnConfig;
@@ -95,7 +98,9 @@ public class MessageHandler {
         getContextAndRunAsync(client.getSessionId(), context ->
             context.executeInLock(() -> {
                 log.info("Create rtc core...");
+                MessageHandler.f_idx = 0;
                 context.setRtc(new RTC(new AudioCapturer() {
+
 
                     private volatile InputStream testAudio;
                     private volatile ByteBuffer directByteBuffer;
@@ -153,12 +158,12 @@ public class MessageHandler {
 
                     @Override
                     public int getWidth() {
-                        return 850;
+                        return 1920;
                     }
 
                     @Override
                     public int getHeight() {
-                        return 478;
+                        return 1080;
                     }
 
                     @Override
@@ -168,45 +173,27 @@ public class MessageHandler {
 
                     @Override
                     public VideoFrame capture() {
-                        if (sourceBuffer == null) {
-                            try (InputStream imageStream = this.getClass().getResourceAsStream("/test.jpg")) {
-                                sourceBuffer = ByteBuffer.allocateDirect(imageStream.available());
-                                totalSize = 0;
-                                byte[] tmp = new byte[1024];
-                                while (imageStream.available() > 0) {
-                                    int readSize = imageStream.read(tmp);
-                                    if (readSize <= 0) {
-                                        break;
-                                    }
-                                    totalSize += readSize;
-                                    sourceBuffer.put(tmp, 0, readSize);
+                        MessageHandler.f_idx++;
+                        String szFilename = String.format("frame%d_.jpg", f_idx);
+
+                        try (InputStream imageStream = new FileInputStream("/home/ovidiu/proiecte/webrtc-streaming/streaming-platform/"+szFilename)) {
+                            sourceBuffer = ByteBuffer.allocateDirect(imageStream.available());
+                            totalSize = 0;
+                            byte[] tmp = new byte[4096];
+                            while (imageStream.available() > 0) {
+                                int readSize = imageStream.read(tmp);
+                                if (readSize <= 0) {
+                                    break;
                                 }
-                            } catch (Exception e) {
-                                e.printStackTrace();
+                                totalSize += readSize;
+                                sourceBuffer.put(tmp, 0, readSize);
                             }
+                        } catch (Exception e) {
+                            e.printStackTrace();
                         }
-                        if (sourceBuffer2 == null) {
-                            try (InputStream imageStream = this.getClass().getResourceAsStream("/test_90.jpg")) {
-                                sourceBuffer2 = ByteBuffer.allocateDirect(imageStream.available());
-                                totalSize2 = 0;
-                                byte[] tmp = new byte[1024];
-                                while (imageStream.available() > 0) {
-                                    int readSize = imageStream.read(tmp);
-                                    if (readSize <= 0) {
-                                        break;
-                                    }
-                                    totalSize2 += readSize;
-                                    sourceBuffer2.put(tmp, 0, readSize);
-                                }
-                            } catch (Exception e) {
-                                e.printStackTrace();
-                            }
-                        }
-                        if (new Date().getSeconds() % 2 == 0) {
-                            return new VideoFrame(0, System.currentTimeMillis(), sourceBuffer, totalSize);
-                        } else {
-                            return new VideoFrame(0, System.currentTimeMillis(), sourceBuffer2, totalSize2);
-                        }
+
+                        return new VideoFrame(0, System.currentTimeMillis(), sourceBuffer, totalSize);
+
                     }
                 }, WHITE_PRIVATE_IP_PREFIX,
                     MIN_PORT, MAX_PORT, HARDWARE_ACCELERATE, client.getSessionId().toString()));
