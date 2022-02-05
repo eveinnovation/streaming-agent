@@ -20,7 +20,7 @@ import static org.bytedeco.ffmpeg.global.avutil.*;
 public class ReadFrameAsJpeg {
 
     public static void main(String[] args) throws Exception {
-        ReadFrameAsJpeg.test("https://dl8.webmfiles.org/elephants-dream.webm");
+        ReadFrameAsJpeg.test("rtp://192.168.1.191:1240");
     }
 
     static void save_frame(AVFrame pFrame, int width, int height, int f_idx) throws IOException {
@@ -31,7 +31,7 @@ public class ReadFrameAsJpeg {
         pFormatCtx.oformat(av_guess_format("mjpeg", null, null));
 
         AVIOContext pb = new AVIOContext(null);
-        String szFilename = String.format("frame%d_.jpg", f_idx);
+        String szFilename = String.format("output.jpg", f_idx);
         ret = avio_open(pb, szFilename, AVIO_FLAG_WRITE);
         if (ret < 0) {
             System.out.println("Cannot open io context");
@@ -56,10 +56,13 @@ public class ReadFrameAsJpeg {
         pCodecCtx.width(width);
         pCodecCtx.height(height);
         pCodecCtx.codec_id(pFormatCtx.oformat().video_codec());
+        pCodecCtx.codec_type(AVMEDIA_TYPE_VIDEO);
         AVRational ratio = new AVRational();
         ratio.num(1);
         ratio.den(25);
         pCodecCtx.time_base(ratio);
+        pCodecCtx.flags(AV_CODEC_FLAG_QSCALE);
+        pCodecCtx.global_quality(FF_QP2LAMBDA*4);
         pCodecCtx.pix_fmt(AV_PIX_FMT_YUVJ420P);
 
         // Open the codec
@@ -89,6 +92,7 @@ public class ReadFrameAsJpeg {
 //            System.out.println("Encode Success.\n");
         }
 
+        ret = av_interleaved_write_frame(pFormatCtx, pkt);
         av_packet_unref(pkt);
         av_write_trailer(pFormatCtx);
         avcodec_close(pCodecCtx);
@@ -164,13 +168,16 @@ public class ReadFrameAsJpeg {
                     break;
                 }
             }
-            if (ret2 >= 0 && ++i <= 1000) {
-                save_frame(frm, codec_ctx.width(), codec_ctx.height(), i);
-            }
-            av_packet_unref(pkt);
-            if (i >= 1000) {
-                break;
-            }
+
+            save_frame(frm, codec_ctx.width(), codec_ctx.height(), i);
+
+//            if (ret2 >= 0 && ++i <= 100) {
+//                save_frame(frm, codec_ctx.width(), codec_ctx.height(), i);
+//            }
+//            av_packet_unref(pkt);
+//            if (i >= 100) {
+//                break;
+//            }
         }
 
         av_frame_free(frm);

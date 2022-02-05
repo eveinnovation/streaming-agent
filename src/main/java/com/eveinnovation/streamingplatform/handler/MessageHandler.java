@@ -19,11 +19,8 @@ import com.corundumstudio.socketio.SocketIOClient;
 import com.corundumstudio.socketio.annotation.OnDisconnect;
 import com.corundumstudio.socketio.annotation.OnEvent;
 
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.nio.ByteBuffer;
-import java.util.Date;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -31,6 +28,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+
+import com.eveinnovation.streamingplatform.util.ReadFramesAsStreamJpeg;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -50,20 +49,25 @@ public class MessageHandler {
     private static final int MAX_PORT = 51000;
     private static final boolean HARDWARE_ACCELERATE = true;
     private static final int MAX_BIT_RATE = 2 * 1024 * 1024;
-    private static int f_idx = 0;
+    private int f_idx = 1;
+    private boolean isDefaultImage = false;
 
     @Autowired
     private WebRtcTurnConfig webRtcTurnConfig;
+
+    @Autowired
+    private ReadFramesAsStreamJpeg readFramesAsStreamJpeg;
+
 
     private final Map<UUID, UseContext> useContextMap = new ConcurrentHashMap<>();
     private final ThreadPoolExecutor executor;
 
     public MessageHandler() {
         executor = new ThreadPoolExecutor(
-            THREAD_SIZE, THREAD_SIZE,
-            Integer.MAX_VALUE, TimeUnit.SECONDS,
-            new LinkedBlockingQueue<>(), new NamedThreadFactory("Message", THREAD_SIZE));
-}
+                THREAD_SIZE, THREAD_SIZE,
+                Integer.MAX_VALUE, TimeUnit.SECONDS,
+                new LinkedBlockingQueue<>(), new NamedThreadFactory("Message", THREAD_SIZE));
+    }
 
     @OnDisconnect
     public void onDisconnect(SocketIOClient client) {
@@ -95,141 +99,148 @@ public class MessageHandler {
 
     @OnEvent(Constants.BEGIN_WEB_RTC)
     public void beginWebRtc(SocketIOClient client) {
-        getContextAndRunAsync(client.getSessionId(), context ->
-            context.executeInLock(() -> {
-                log.info("Create rtc core...");
-                MessageHandler.f_idx = 0;
-                context.setRtc(new RTC(new AudioCapturer() {
+        getContextAndRunAsync(client.getSessionId(), context -> context.executeInLock(() -> {
+            log.info("Create rtc core...");
+            this.isDefaultImage = false;
+            this.f_idx = 1;
+            try {
+                readFramesAsStreamJpeg.init("http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4");
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            context.setRtc(new RTC(new AudioCapturer() {
 
+                private volatile InputStream testAudio;
+                private volatile ByteBuffer directByteBuffer;
 
-                    private volatile InputStream testAudio;
-                    private volatile ByteBuffer directByteBuffer;
+                @Override
+                public void close() {
 
-                    @Override
-                    public void close() {
+                }
 
+                @Override
+                public int samplingFrequency() {
+                    return 44100;
+                }
+
+                @Override
+                public ByteBuffer capture(int size) {
+                    if (directByteBuffer == null) {
+                        directByteBuffer = ByteBuffer.allocateDirect(size);
                     }
-
-                    @Override
-                    public int samplingFrequency() {
-                        return 44100;
-                    }
-
-                    @Override
-                    public ByteBuffer capture(int size) {
-                        if (directByteBuffer == null) {
-                            directByteBuffer = ByteBuffer.allocateDirect(size);
-                        }
-                        directByteBuffer.clear();
-                        try {
-                            byte[] data = new byte[size];
-                            while (directByteBuffer.hasRemaining()) {
-                                if (testAudio == null) {
-                                    // 16-bit 44100Hz mono
-                                    testAudio = this.getClass().getResourceAsStream("/gong.wav");
-                                }
-                                try {
-                                    int length = testAudio.read(data, 0, directByteBuffer.remaining());
-                                    directByteBuffer.put(data, 0, length);
-                                    if (testAudio.available() == 0) {
-                                        testAudio.close();
-                                        testAudio = null;
-                                    }
-                                } catch (IOException e) {
-                                    e.printStackTrace();
-                                }
+                    directByteBuffer.clear();
+                    try {
+                        byte[] data = new byte[size];
+                        while (directByteBuffer.hasRemaining()) {
+                            if (testAudio == null) {
+                                // 16-bit 44100Hz mono
+                                testAudio = this.getClass().getResourceAsStream("/gong.wav");
                             }
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                        return directByteBuffer;
-                    }
-                }, new VideoCapturer() {
-
-                    private volatile ByteBuffer sourceBuffer;
-                    private volatile int totalSize;
-                    private volatile ByteBuffer sourceBuffer2;
-                    private volatile int totalSize2;
-
-                    @Override
-                    public void close() {
-
-                    }
-
-                    @Override
-                    public int getWidth() {
-                        return 1920;
-                    }
-
-                    @Override
-                    public int getHeight() {
-                        return 1080;
-                    }
-
-                    @Override
-                    public int getFps() {
-                        return 25;
-                    }
-
-                    @Override
-                    public VideoFrame capture() {
-                        MessageHandler.f_idx++;
-                        String szFilename = String.format("frame%d_.jpg", f_idx);
-
-                        try (InputStream imageStream = new FileInputStream("/home/ovidiu/proiecte/webrtc-streaming/streaming-platform/"+szFilename)) {
-                            sourceBuffer = ByteBuffer.allocateDirect(imageStream.available());
-                            totalSize = 0;
-                            byte[] tmp = new byte[4096];
-                            while (imageStream.available() > 0) {
-                                int readSize = imageStream.read(tmp);
-                                if (readSize <= 0) {
-                                    break;
+                            try {
+                                int length = testAudio.read(data, 0, directByteBuffer.remaining());
+                                directByteBuffer.put(data, 0, length);
+                                if (testAudio.available() == 0) {
+                                    testAudio.close();
+                                    testAudio = null;
                                 }
-                                totalSize += readSize;
-                                sourceBuffer.put(tmp, 0, readSize);
+                            } catch (IOException e) {
+                                e.printStackTrace();
                             }
-                        } catch (Exception e) {
-                            e.printStackTrace();
                         }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                    return directByteBuffer;
+                }
+            }, new VideoCapturer() {
 
+                private volatile ByteBuffer sourceBuffer;
+                private volatile int totalSize;
+                private volatile ByteBuffer sourceBuffer2;
+                private volatile int totalSize2;
+
+                @Override
+                public void close() {
+
+                }
+
+                @Override
+                public int getWidth() {
+                    return 1920;
+                }
+
+                @Override
+                public int getHeight() {
+                    return 1080;
+                }
+
+                @Override
+                public int getFps() {
+                    return 24;
+                }
+
+                @Override
+                public VideoFrame capture() {
+
+                    ByteArrayOutputStream byteArrayOutputStream = readFramesAsStreamJpeg.getByteArrayOutputStream();
+                    try (InputStream imageStream = new FileInputStream(getFrameImage())) {
+                        sourceBuffer = ByteBuffer.allocateDirect(imageStream.available());
+                        totalSize = 0;
+                        byte[] tmp = new byte[1024];
+                        while (imageStream.available() > 0) {
+                            int readSize = imageStream.read(tmp);
+                            if (readSize <= 0) {
+                                break;
+                            }
+                            totalSize += readSize;
+                            sourceBuffer.put(tmp, 0, readSize);
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        isDefaultImage = true;
                         return new VideoFrame(0, System.currentTimeMillis(), sourceBuffer, totalSize);
-
-                    }
-                }, WHITE_PRIVATE_IP_PREFIX,
-                    MIN_PORT, MAX_PORT, HARDWARE_ACCELERATE, client.getSessionId().toString()));
-                log.info("Create peer connection...");
-                context.setPeerConnection(context.getRtc().createPeerConnection(new PeerConnectionObserver() {
-                    @Override
-                    public void onIceCandidate(IceCandidate iceCandidate) {
-                        log.info("on ice candidate, {}", iceCandidate);
-                        executor.submit(() -> client.sendEvent(Constants.ON_CANDIDATE, iceCandidate));
                     }
 
-                    @Override
-                    public void onSignalingChange(int state) {
-                        log.info("On signaling change, {}", SignalingState.getByIndex(state));
-                    }
+                    byteArrayOutputStream.reset();
 
-                    @Override
-                    public void onDataChannel(DataChannel dataChannel) {
-                        context.setDataChannel(dataChannel);
-                        log.info("On data channel, {}", dataChannel);
-                    }
 
-                    @Override
-                    public void onRenegotiationNeeded() {
-                        log.info("On renegotiation needed");
-                    }
-                }, webRtcTurnConfig.getTurnServers(), MAX_BIT_RATE));
-                log.info("Start peer connection transport...");
-                context.getPeerConnection().createDataChannel("test", new DataChannelConfig(),
+                    return new VideoFrame(0, System.currentTimeMillis(), sourceBuffer, totalSize);
+
+                }
+            }, WHITE_PRIVATE_IP_PREFIX, MIN_PORT, MAX_PORT, HARDWARE_ACCELERATE, client.getSessionId().toString()));
+            log.info("Create peer connection...");
+            context.setPeerConnection(context.getRtc().createPeerConnection(new PeerConnectionObserver() {
+                @Override
+                public void onIceCandidate(IceCandidate iceCandidate) {
+                    log.info("on ice candidate, {}", iceCandidate);
+                    executor.submit(() -> client.sendEvent(Constants.ON_CANDIDATE, iceCandidate));
+                }
+
+                @Override
+                public void onSignalingChange(int state) {
+                    log.info("On signaling change, {}", SignalingState.getByIndex(state));
+                }
+
+                @Override
+                public void onDataChannel(DataChannel dataChannel) {
+                    context.setDataChannel(dataChannel);
+                    log.info("On data channel, {}", dataChannel);
+                }
+
+                @Override
+                public void onRenegotiationNeeded() {
+                    log.info("On renegotiation needed");
+                }
+            }, webRtcTurnConfig.getTurnServers(), MAX_BIT_RATE));
+            log.info("Start peer connection transport...");
+            context.getPeerConnection().createDataChannel("test", new DataChannelConfig(),
                     dataBuffer -> {
                         log.info("Received data channel data, {}", dataBuffer);
                         context.getDataChannel().send(new DataBuffer("pong".getBytes(), false));
                     });
-                context.getPeerConnection().startTransport();
-                log.info("Create peer connection offer...");
-                context.getPeerConnection().createOffer(sdp ->
+            context.getPeerConnection().startTransport();
+            log.info("Create peer connection offer...");
+            context.getPeerConnection().createOffer(sdp ->
                     executor.submit(() -> {
                         try {
                             context.getPeerConnection().setLocalDescription(sdp);
@@ -238,45 +249,46 @@ public class MessageHandler {
                             log.error("Handle create offer error", e);
                         }
                     }));
-            }));
+        }));
     }
+
 
     @OnEvent(Constants.BANDWIDTH)
     public void changeBandwidth(SocketIOClient client, int newBandwidth) {
         getContextAndRunAsync(client.getSessionId(), context ->
-            context.executeInLock(() -> {
-                try {
-                    context.getPeerConnection().changeBitrate(newBandwidth);
-                } catch (Exception e) {
-                    log.error("Handle change bandwidth error", e);
-                }
-            }));
+                context.executeInLock(() -> {
+                    try {
+                        context.getPeerConnection().changeBitrate(newBandwidth);
+                    } catch (Exception e) {
+                        log.error("Handle change bandwidth error", e);
+                    }
+                }));
     }
 
     @OnEvent(Constants.ANSWER_SDP)
     public void answerSdp(SocketIOClient client, SessionDescription sessionDescription) {
         log.info("Received a answer sdp, {}", sessionDescription.getType());
         getContextAndRunAsync(client.getSessionId(), context ->
-            context.executeInLock(() -> {
-                try {
-                    context.getPeerConnection().setRemoteDescription(sessionDescription);
-                } catch (Exception e) {
-                    log.error("Handle answer sdp error", e);
-                }
-            }));
+                context.executeInLock(() -> {
+                    try {
+                        context.getPeerConnection().setRemoteDescription(sessionDescription);
+                    } catch (Exception e) {
+                        log.error("Handle answer sdp error", e);
+                    }
+                }));
     }
 
     @OnEvent(Constants.ON_CANDIDATE)
     public void onCandidate(SocketIOClient client, IceCandidate iceCandidate) {
         log.info("Received a ice candidate, {}", iceCandidate);
         getContextAndRunAsync(client.getSessionId(), context ->
-            context.executeInLock(() -> {
-                try {
-                    context.getPeerConnection().addIceCandidate(iceCandidate);
-                } catch (Exception e) {
-                    log.error("Handle ice candidate error", e);
-                }
-            }));
+                context.executeInLock(() -> {
+                    try {
+                        context.getPeerConnection().addIceCandidate(iceCandidate);
+                    } catch (Exception e) {
+                        log.error("Handle ice candidate error", e);
+                    }
+                }));
     }
 
     private void start(UseContext context) {
@@ -294,6 +306,7 @@ public class MessageHandler {
     }
 
     private void getContextAndRunAsync(UUID uuid, Function function) {
+        //synchronized block
         synchronized (useContextMap) {
             UseContext context = useContextMap.get(uuid);
             if (!Objects.isNull(context)) {
@@ -302,7 +315,15 @@ public class MessageHandler {
         }
     }
 
-    interface Function{
+    interface Function {
         void apply(UseContext useContext);
+    }
+
+    private String getFrameImage() {
+        if (!isDefaultImage) {
+            return String.format("/home/ovidiu/test-out/frame%d_.jpg", f_idx++);
+        } else {
+            return "/home/ovidiu/test-out/output.jpg";
+        }
     }
 }

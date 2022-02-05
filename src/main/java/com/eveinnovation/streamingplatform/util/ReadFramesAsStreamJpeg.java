@@ -10,52 +10,55 @@ import org.bytedeco.ffmpeg.avutil.AVRational;
 import org.bytedeco.javacpp.BytePointer;
 import org.bytedeco.javacpp.Pointer;
 import org.bytedeco.javacpp.PointerPointer;
+import org.springframework.stereotype.Component;
 
 import java.io.*;
-import java.nio.ByteBuffer;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static org.bytedeco.ffmpeg.global.avcodec.*;
 import static org.bytedeco.ffmpeg.global.avformat.*;
 import static org.bytedeco.ffmpeg.global.avutil.*;
 
+@Component
 public class ReadFramesAsStreamJpeg {
+
+    private final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
 
     @FunctionalInterface
     interface Response {
         void writeTo(OutputStream outputStream) throws Exception;
     }
 
-    public static void main(String[] args) throws Exception {
-        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+    public ByteArrayOutputStream getByteArrayOutputStream() {
+        return byteArrayOutputStream;
+    }
 
-//        Response responseBytes = byteArrayOutputStream -> ReadFrameAsJpeg.write("rtp://192.168.1.191:1240", byteArrayOutputStream);
+    public  void init(String source) throws Exception {
+        byteArrayOutputStream.reset();
 
-        BufferedOutputStream buffOutputStr  = new BufferedOutputStream(byteArrayOutputStream);
+        ExecutorService executor = Executors.newFixedThreadPool(1);
 
-        ReadFramesAsStreamJpeg.write("rtp://192.168.1.191:1240", buffOutputStr);
-//        for (byte by : byteArrayOutputStream
-//                .toByteArray()) {
-//
-//            // Converts byte to character
-//            char ch = (char)by;
-//            System.out.print(ch);
-//        }
-        try (InputStream imageStream = new ByteArrayInputStream(byteArrayOutputStream.toByteArray())) {
+        //callback function (the body implementation of writeTo())
+        Response responseBytes = outputStream -> {
+            ReadFramesAsStreamJpeg.write(source, outputStream);
+        };
 
-            byte[] tmp = new byte[1024];
-            while (imageStream.available() > 0) {
-                int readSize = imageStream.read(tmp);
-                if (readSize <= 0) {
-                    break;
-                }
-                System.out.println("arrrayyyyyy\n");
+        Runnable runnableTask = () -> {
+            try {
+                getByteArrayOutputStream(byteArrayOutputStream, responseBytes);
+            } catch (Exception e) {
+                e.printStackTrace();
             }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        };
+        executor.submit(runnableTask);
+    }
+
+
+    private static ByteArrayOutputStream getByteArrayOutputStream(ByteArrayOutputStream byteArrayOutputStream, Response responseBytes) throws Exception {
+        responseBytes.writeTo(byteArrayOutputStream);
+        return byteArrayOutputStream;
     }
 
     static ReadFramesAsStreamJpeg.SeekCallback seekCallback = new ReadFramesAsStreamJpeg.SeekCallback().retainReference();
@@ -73,29 +76,11 @@ public class ReadFramesAsStreamJpeg {
         AVFormatContext pFormatCtx = avformat_alloc_context();
         pFormatCtx.oformat(av_guess_format("mjpeg", null, null));
 
-        AVIOContext pb = new AVIOContext(null);
-        String szFilename = String.format("frame%d_.jpg", f_idx);
-        ret = avio_open(pb, szFilename, AVIO_FLAG_WRITE);
-        if (ret < 0) {
-            System.out.println("Cannot open io context");
-            return;
-        }
-        pFormatCtx.pb(pb);
-
-
-
-
         Seek_Pointer_long_int seek = outputStream instanceof Seekable ? seekCallback : null;
         AVIOContext avio = avio_alloc_context(new BytePointer(av_malloc(1024)), 1024, 1, pFormatCtx, null, writeCallback, seek);
         pFormatCtx.pb(avio);
 
         outputStreams.put(pFormatCtx, outputStream);
-
-
-
-
-
-
 
         AVCodec codec = avcodec_find_encoder(AV_CODEC_ID_MJPEG);
         if (codec == null) {
@@ -116,8 +101,10 @@ public class ReadFramesAsStreamJpeg {
         pCodecCtx.codec_id(pFormatCtx.oformat().video_codec());
         AVRational ratio = new AVRational();
         ratio.num(1);
-        ratio.den(25);
+        ratio.den(24);
         pCodecCtx.time_base(ratio);
+        pCodecCtx.framerate(ratio);
+        pCodecCtx.bit_rate(1000000);
         pCodecCtx.pix_fmt(AV_PIX_FMT_YUVJ420P);
 
         // Open the codec
@@ -217,19 +204,18 @@ public class ReadFramesAsStreamJpeg {
         int ret1 = -1, ret2 = -1, fi = -1;
         while (av_read_frame(fmt_ctx, pkt) >= 0) {
             if (pkt.stream_index() == v_stream_idx) {
+
                 ret1 = avcodec_send_packet(codec_ctx, pkt);
                 ret2 = avcodec_receive_frame(codec_ctx, frm);
                 if (ret1 < 0) {
                     break;
                 }
             }
-            if (ret2 >= 0 && ++i <= 100) {
+
                 save_frame(frm, codec_ctx.width(), codec_ctx.height(), i, outputStream);
-            }
+
             av_packet_unref(pkt);
-            if (i >= 100) {
-                break;
-            }
+
         }
 
         av_frame_free(frm);
@@ -251,6 +237,7 @@ public class ReadFramesAsStreamJpeg {
                 buf.get(b, 0, buf_size);
 
                 os.write(b, 0, buf_size);
+                os.flush();
 
                 return buf_size;
             } catch (Throwable t) {
