@@ -20,7 +20,7 @@ import static org.bytedeco.ffmpeg.global.avutil.*;
 public class ReadFrameAsJpeg {
 
     public static void main(String[] args) throws Exception {
-        ReadFrameAsJpeg.test("/home/ovidiu/public_html/1883.S01E03.River.2160p.WEB-DL.DDP5.1.H.265-NTb.mkv");
+        ReadFrameAsJpeg.test("rtp://192.168.1.191:1240");
     }
 
     static void save_frame(AVFrame pFrame, int width, int height, int f_idx) throws IOException {
@@ -73,8 +73,10 @@ public class ReadFrameAsJpeg {
 
         //buffer size encoding
         AVDictionary metadata = new AVDictionary();
-        av_dict_set(metadata, "buffsize", "1000000", 0);
-        av_dict_set(metadata, "maxrate", "1000000", 0);
+        av_dict_set(metadata, "buffsize", "2000000", 0);
+        av_dict_set(metadata, "maxrate", "2000000", 0);
+
+        pAVStream.metadata(metadata);
 
         // assign the codec context to the stream parameters.
         avcodec_parameters_from_context(pAVStream.codecpar(), pCodecCtx);
@@ -86,7 +88,7 @@ public class ReadFrameAsJpeg {
         // assign large enough space
         AVPacket pkt = av_packet_alloc();
 
-        av_new_packet(pkt, y_size * 3);
+//        av_new_packet(pkt, y_size * 3);
         ret = avcodec_send_frame(pCodecCtx, pFrame);
 
         if (ret < 0) {
@@ -115,7 +117,7 @@ public class ReadFrameAsJpeg {
         AVPacket pkt = new AVPacket();
 
         AVDictionary metadata = new AVDictionary();
-        av_dict_set(metadata, "buffer_size", "1900000", 0);
+        av_dict_set(metadata, "buffer_size", "10000000", 0);
         av_dict_set(metadata, "fflags", "discardcorrupt", 0);
 
         ret = avformat_open_input(fmt_ctx, file, null, metadata);
@@ -185,7 +187,7 @@ public class ReadFrameAsJpeg {
                     save_frame(frm, codec_ctx.width(), codec_ctx.height(), i);
                 }
 
-                if (i >= 2000) {
+                if (i >= 1000) {
                     break;
                 }
             }

@@ -22,7 +22,7 @@ import static org.bytedeco.ffmpeg.global.swscale.*;
 public class ReadFewFrame {
 
     public static void main(String[] args) throws Exception {
-        ReadFewFrame.test("http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4");
+        ReadFewFrame.test("rtp://192.168.1.191:1240");
     }
 
 

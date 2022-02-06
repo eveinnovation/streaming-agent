@@ -104,7 +104,7 @@ public class MessageHandler {
             this.isDefaultImage = false;
             this.f_idx = 1;
             try {
-                readFramesAsStreamJpeg.init("/home/ovidiu/test-out/out.ts");
+                readFramesAsStreamJpeg.init("rtp://192.168.1.191:1240");
             } catch (Exception e) {
                 e.printStackTrace();
             }

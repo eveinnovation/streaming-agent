@@ -60,3 +60,8 @@ ffmpeg -f x11grab -r 15 -s 1366x768 -i :0.0+0,0 \
 -maxrate 500k -bufsize 500k \
 -pix_fmt yuv420p \
 -f mpegts 'udp://192.168.1.102:6881?pkt_size=1316'
+
+sudo sysctl -w net.core.rmem_max=16777216
+sudo sysctl -w net.core.rmem_default=16777216
+sudo sysctl -w net.core.wmem_max=16777216
+sudo sysctl -w net.core.wmem_default=16777216

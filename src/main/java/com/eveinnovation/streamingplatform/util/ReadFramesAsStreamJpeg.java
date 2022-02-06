@@ -27,50 +27,29 @@ import static org.bytedeco.ffmpeg.global.avutil.*;
 public class ReadFramesAsStreamJpeg {
 
     private final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-    private final PipedInputStream pipedInputStream = new PipedInputStream();
-
-
-    @FunctionalInterface
-    interface Response {
-        void writeTo(OutputStream outputStream) throws Exception;
-    }
 
     public ByteArrayOutputStream getByteArrayOutputStream() {
         return byteArrayOutputStream;
     }
 
-    public PipedInputStream getPipedInputStream() {
-        return pipedInputStream;
-    }
 
     public static void main(String[] args) throws IOException, InterruptedException {
         ReadFramesAsStreamJpeg r = new ReadFramesAsStreamJpeg();
         r.init("rtp://192.168.1.191:1240");
     }
 
-    public  void init(String source) throws IOException, InterruptedException {
-        byteArrayOutputStream.reset();
+    public  void init(String source) {
 
         ExecutorService executor = Executors.newFixedThreadPool(1);
 
-        //callback function (the body implementation of writeTo())
-        Response responseBytes = outputStream -> {
-            ReadFramesAsStreamJpeg.write(source, outputStream);
-        };
-
         Runnable runnableTask = () -> {
             try {
-                getByteArrayOutputStream(byteArrayOutputStream, responseBytes);
+                ReadFramesAsStreamJpeg.write(source, byteArrayOutputStream);
             } catch (Exception e) {
                 e.printStackTrace();
             }
         };
         executor.submit(runnableTask);
-    }
-
-
-    private static void getByteArrayOutputStream(ByteArrayOutputStream byteArrayOutputStream, Response responseBytes) throws Exception {
-        responseBytes.writeTo(byteArrayOutputStream);
     }
 
     static ReadFramesAsStreamJpeg.SeekCallback seekCallback = new ReadFramesAsStreamJpeg.SeekCallback().retainReference();
@@ -131,6 +110,8 @@ public class ReadFramesAsStreamJpeg {
         av_dict_set(metadata, "buffsize", "1000000", 0);
         av_dict_set(metadata, "maxrate", "1000000", 0);
 
+        pAVStream.metadata(metadata);
+
         // assign the codec context to the stream parameters.
         avcodec_parameters_from_context(pAVStream.codecpar(), pCodecCtx);
 
@@ -170,7 +151,7 @@ public class ReadFramesAsStreamJpeg {
         AVPacket pkt = new AVPacket();
 
         AVDictionary metadata = new AVDictionary();
-        av_dict_set(metadata, "buffer_size", "1900000", 0);
+        av_dict_set(metadata, "buffer_size", "10000000", 0);
         av_dict_set(metadata, "fflags", "discardcorrupt", 0);
 
         ret = avformat_open_input(fmt_ctx, file, null, metadata);
@@ -258,7 +239,6 @@ public class ReadFramesAsStreamJpeg {
                 buf.get(b, 0, buf_size);
 
                 os.write(b, 0, buf_size);
-                os.flush();
 
                 return buf_size;
             } catch (Throwable t) {
