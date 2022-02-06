@@ -1,5 +1,6 @@
 package com.eveinnovation.streamingplatform.util;
 
+import bbm.webrtc.rtc4j.model.VideoFrame;
 import org.bytedeco.ffmpeg.avcodec.AVCodec;
 import org.bytedeco.ffmpeg.avcodec.AVCodecContext;
 import org.bytedeco.ffmpeg.avcodec.AVPacket;
@@ -13,6 +14,7 @@ import org.bytedeco.javacpp.PointerPointer;
 import org.springframework.stereotype.Component;
 
 import java.io.*;
+import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -25,6 +27,8 @@ import static org.bytedeco.ffmpeg.global.avutil.*;
 public class ReadFramesAsStreamJpeg {
 
     private final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+    private final PipedInputStream pipedInputStream = new PipedInputStream();
+
 
     @FunctionalInterface
     interface Response {
@@ -35,7 +39,16 @@ public class ReadFramesAsStreamJpeg {
         return byteArrayOutputStream;
     }
 
-    public  void init(String source) throws Exception {
+    public PipedInputStream getPipedInputStream() {
+        return pipedInputStream;
+    }
+
+    public static void main(String[] args) throws IOException, InterruptedException {
+        ReadFramesAsStreamJpeg r = new ReadFramesAsStreamJpeg();
+        r.init("rtp://192.168.1.191:1240");
+    }
+
+    public  void init(String source) throws IOException, InterruptedException {
         byteArrayOutputStream.reset();
 
         ExecutorService executor = Executors.newFixedThreadPool(1);
@@ -56,9 +69,8 @@ public class ReadFramesAsStreamJpeg {
     }
 
 
-    private static ByteArrayOutputStream getByteArrayOutputStream(ByteArrayOutputStream byteArrayOutputStream, Response responseBytes) throws Exception {
+    private static void getByteArrayOutputStream(ByteArrayOutputStream byteArrayOutputStream, Response responseBytes) throws Exception {
         responseBytes.writeTo(byteArrayOutputStream);
-        return byteArrayOutputStream;
     }
 
     static ReadFramesAsStreamJpeg.SeekCallback seekCallback = new ReadFramesAsStreamJpeg.SeekCallback().retainReference();
@@ -69,7 +81,7 @@ public class ReadFramesAsStreamJpeg {
         ReadFramesAsStreamJpeg.test(inputFile, outputStream);
     }
 
-    static void save_frame(AVFrame pFrame, int width, int height, int f_idx, OutputStream outputStream) {
+    static void save_frame(AVFrame pFrame, int width, int height, OutputStream outputStream) {
 
         int ret;
 
@@ -103,18 +115,25 @@ public class ReadFramesAsStreamJpeg {
         ratio.num(1);
         ratio.den(24);
         pCodecCtx.time_base(ratio);
-        pCodecCtx.framerate(ratio);
-        pCodecCtx.bit_rate(1000000);
+//        pCodecCtx.framerate(ratio);
+//        pCodecCtx.bit_rate(1000000);
+        pCodecCtx.flags(AV_CODEC_FLAG_QSCALE);
         pCodecCtx.pix_fmt(AV_PIX_FMT_YUVJ420P);
+        pCodecCtx.global_quality(FF_QP2LAMBDA);
 
         // Open the codec
         if (avcodec_open2(pCodecCtx, codec, (PointerPointer) null) < 0) {
             System.out.println("Could not open codec.");
             return;
         }
+        //buffer size encoding
+        AVDictionary metadata = new AVDictionary();
+        av_dict_set(metadata, "buffsize", "1000000", 0);
+        av_dict_set(metadata, "maxrate", "1000000", 0);
 
         // assign the codec context to the stream parameters.
         avcodec_parameters_from_context(pAVStream.codecpar(), pCodecCtx);
+
         avformat_write_header(pFormatCtx, (AVDictionary) null);
 
         int y_size = (pCodecCtx.width()) * (pCodecCtx.height());
@@ -150,7 +169,11 @@ public class ReadFramesAsStreamJpeg {
         AVFormatContext fmt_ctx = new AVFormatContext(null);
         AVPacket pkt = new AVPacket();
 
-        ret = avformat_open_input(fmt_ctx, file, null, null);
+        AVDictionary metadata = new AVDictionary();
+        av_dict_set(metadata, "buffer_size", "1900000", 0);
+        av_dict_set(metadata, "fflags", "discardcorrupt", 0);
+
+        ret = avformat_open_input(fmt_ctx, file, null, metadata);
         if (ret < 0) {
             System.out.printf("Open video file %s failed \n", file);
             throw new IllegalStateException();
@@ -204,25 +227,23 @@ public class ReadFramesAsStreamJpeg {
         int ret1 = -1, ret2 = -1, fi = -1;
         while (av_read_frame(fmt_ctx, pkt) >= 0) {
             if (pkt.stream_index() == v_stream_idx) {
-
                 ret1 = avcodec_send_packet(codec_ctx, pkt);
                 ret2 = avcodec_receive_frame(codec_ctx, frm);
                 if (ret1 < 0) {
                     break;
                 }
+
+                if (ret2 >= 0) {
+                    ++i;
+                    save_frame(frm, codec_ctx.width(), codec_ctx.height(), outputStream);
+                }
             }
-
-                save_frame(frm, codec_ctx.width(), codec_ctx.height(), i, outputStream);
-
             av_packet_unref(pkt);
-
         }
 
         av_frame_free(frm);
-
         avcodec_close(codec_ctx);
         avcodec_free_context(codec_ctx);
-
         avformat_close_input(fmt_ctx);
         System.out.println("Shutdown");
 //        System.exit(0);

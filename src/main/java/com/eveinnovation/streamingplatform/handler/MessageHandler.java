@@ -104,7 +104,7 @@ public class MessageHandler {
             this.isDefaultImage = false;
             this.f_idx = 1;
             try {
-                readFramesAsStreamJpeg.init("http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4");
+                readFramesAsStreamJpeg.init("/home/ovidiu/test-out/out.ts");
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -183,7 +183,7 @@ public class MessageHandler {
                 public VideoFrame capture() {
 
                     ByteArrayOutputStream byteArrayOutputStream = readFramesAsStreamJpeg.getByteArrayOutputStream();
-                    try (InputStream imageStream = new FileInputStream(getFrameImage())) {
+                    try (InputStream imageStream = new ByteArrayInputStream(byteArrayOutputStream.toByteArray())) {
                         sourceBuffer = ByteBuffer.allocateDirect(imageStream.available());
                         totalSize = 0;
                         byte[] tmp = new byte[1024];
@@ -202,7 +202,6 @@ public class MessageHandler {
                     }
 
                     byteArrayOutputStream.reset();
-
 
                     return new VideoFrame(0, System.currentTimeMillis(), sourceBuffer, totalSize);
 

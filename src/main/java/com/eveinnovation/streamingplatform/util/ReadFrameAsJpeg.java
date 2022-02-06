@@ -20,7 +20,7 @@ import static org.bytedeco.ffmpeg.global.avutil.*;
 public class ReadFrameAsJpeg {
 
     public static void main(String[] args) throws Exception {
-        ReadFrameAsJpeg.test("rtp://192.168.1.191:1240");
+        ReadFrameAsJpeg.test("/home/ovidiu/public_html/1883.S01E03.River.2160p.WEB-DL.DDP5.1.H.265-NTb.mkv");
     }
 
     static void save_frame(AVFrame pFrame, int width, int height, int f_idx) throws IOException {
@@ -31,7 +31,7 @@ public class ReadFrameAsJpeg {
         pFormatCtx.oformat(av_guess_format("mjpeg", null, null));
 
         AVIOContext pb = new AVIOContext(null);
-        String szFilename = String.format("output.jpg", f_idx);
+        String szFilename = String.format("/home/ovidiu/test-out/frame%d_.jpg", f_idx);
         ret = avio_open(pb, szFilename, AVIO_FLAG_WRITE);
         if (ret < 0) {
             System.out.println("Cannot open io context");
@@ -59,7 +59,7 @@ public class ReadFrameAsJpeg {
         pCodecCtx.codec_type(AVMEDIA_TYPE_VIDEO);
         AVRational ratio = new AVRational();
         ratio.num(1);
-        ratio.den(25);
+        ratio.den(24);
         pCodecCtx.time_base(ratio);
         pCodecCtx.flags(AV_CODEC_FLAG_QSCALE);
         pCodecCtx.global_quality(FF_QP2LAMBDA*4);
@@ -71,8 +71,14 @@ public class ReadFrameAsJpeg {
             return;
         }
 
+        //buffer size encoding
+        AVDictionary metadata = new AVDictionary();
+        av_dict_set(metadata, "buffsize", "1000000", 0);
+        av_dict_set(metadata, "maxrate", "1000000", 0);
+
         // assign the codec context to the stream parameters.
         avcodec_parameters_from_context(pAVStream.codecpar(), pCodecCtx);
+
         avformat_write_header(pFormatCtx, (AVDictionary) null);
 
         int y_size = (pCodecCtx.width()) * (pCodecCtx.height());
@@ -92,7 +98,7 @@ public class ReadFrameAsJpeg {
 //            System.out.println("Encode Success.\n");
         }
 
-        ret = av_interleaved_write_frame(pFormatCtx, pkt);
+        av_interleaved_write_frame(pFormatCtx, pkt);
         av_packet_unref(pkt);
         av_write_trailer(pFormatCtx);
         avcodec_close(pCodecCtx);
@@ -108,7 +114,11 @@ public class ReadFrameAsJpeg {
         AVFormatContext fmt_ctx = new AVFormatContext(null);
         AVPacket pkt = new AVPacket();
 
-        ret = avformat_open_input(fmt_ctx, file, null, null);
+        AVDictionary metadata = new AVDictionary();
+        av_dict_set(metadata, "buffer_size", "1900000", 0);
+        av_dict_set(metadata, "fflags", "discardcorrupt", 0);
+
+        ret = avformat_open_input(fmt_ctx, file, null, metadata);
         if (ret < 0) {
             System.out.printf("Open video file %s failed \n", file);
             throw new IllegalStateException();
@@ -161,23 +171,28 @@ public class ReadFrameAsJpeg {
         i = 0;
         int ret1 = -1, ret2 = -1, fi = -1;
         while (av_read_frame(fmt_ctx, pkt) >= 0) {
+
+
             if (pkt.stream_index() == v_stream_idx) {
                 ret1 = avcodec_send_packet(codec_ctx, pkt);
                 ret2 = avcodec_receive_frame(codec_ctx, frm);
                 if (ret1 < 0) {
                     break;
                 }
+
+                if (ret2 >= 0) {
+                    ++i;
+                    save_frame(frm, codec_ctx.width(), codec_ctx.height(), i);
+                }
+
+                if (i >= 2000) {
+                    break;
+                }
             }
 
-            save_frame(frm, codec_ctx.width(), codec_ctx.height(), i);
+            av_packet_unref(pkt);
 
-//            if (ret2 >= 0 && ++i <= 100) {
-//                save_frame(frm, codec_ctx.width(), codec_ctx.height(), i);
-//            }
-//            av_packet_unref(pkt);
-//            if (i >= 100) {
-//                break;
-//            }
+
         }
 
         av_frame_free(frm);

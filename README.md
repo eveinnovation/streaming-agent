@@ -18,9 +18,9 @@
 
 
 #FFMPEG commands:
-- ffmpeg -i out.ts -q:v 4 frame%d_.jpg
+- ffmpeg -fflags discardcorrupt -i rtp://192.168.1.191:1240 -vframes 100 -q:v 1 frame%d_.jpg
 - ffmpeg -i out.ts -q:v 4 -f image2pipe -
-- write so single image: ffmpeg -fflags discardcorrupt -i rtp://192.168.1.191:1240 -q:v 2 -r 26 -update 1 output.jpg
+- write so single image: ffmpeg -fflags discardcorrupt -i rtp://192.168.1.191:1240  -q:v 1 -f image2 -r 24 -update 1 output.jpg
 - generate video from frames: ffmpeg -framerate 24 -i frame%d_.jpg -c:v libx264 -crf 25 -vf "scale=500:500, format=yuv420p" -movflags +faststart output.ts
 - ffmpeg -fflags discardcorrupt -i rtp://192.168.1.191:1240 -q:v 1 -r 24  -f image2pipe pipe:1 > output.jpg
 
@@ -43,4 +43,20 @@ ffmpeg -ss 60 -i input.mp4 -qscale:v 4 -frames:v 1 output.jpg
 To continuously overwrite/update/save to a single image
 Use -update 1 image muxer option. Example for once per second from a live streaming input:
 
-ffmpeg -i rtmp://input.foo -q:v 4 -r 1 -update 1 output.jpg
+#LINUX BUFFER:
+sudo sysctl -w net.core.rmem_max=2097152
+sudo sysctl -w net.core.rmem_default=2097152
+sudo sysctl -w net.core.wmem_max=2097152
+sudo sysctl -w net.core.wmem_default=2097152
+
+#SET 
+#SET maxrate and buffsize to encode rtp correctly
+
+!smearing image:
+
+ffmpeg -f x11grab -r 15 -s 1366x768 -i :0.0+0,0 \
+-c:v libx264 -preset ultrafast -b 500k \
+-tune zerolatency \
+-maxrate 500k -bufsize 500k \
+-pix_fmt yuv420p \
+-f mpegts 'udp://192.168.1.102:6881?pkt_size=1316'

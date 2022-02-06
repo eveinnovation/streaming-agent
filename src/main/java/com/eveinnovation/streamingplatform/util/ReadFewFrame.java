@@ -22,7 +22,7 @@ import static org.bytedeco.ffmpeg.global.swscale.*;
 public class ReadFewFrame {
 
     public static void main(String[] args) throws Exception {
-        ReadFewFrame.test("out.ts");
+        ReadFewFrame.test("http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4");
     }
 
 
@@ -133,12 +133,12 @@ public class ReadFewFrame {
         i = 0;
         int ret1 = -1, ret2 = -1, fi = -1;
         while (av_read_frame(fmt_ctx, pkt) >= 0) {
-            if (pkt.stream_index() == v_stream_idx) {
+
                 ret1 = avcodec_send_packet(codec_ctx, pkt);
                 ret2 = avcodec_receive_frame(codec_ctx, frm);
                 System.out.printf("ret1 %d ret2 %d\n", ret1, ret2);
                 // avcodec_decode_video2(codec_ctx, frm, fi, pkt);
-            }
+
             // if not check ret2, error occur [swscaler @ 0x1cb3c40] bad src image pointers
             // ret2 same as fi
             // if (fi && ++i <= 5) {
