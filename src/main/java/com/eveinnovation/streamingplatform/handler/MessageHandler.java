@@ -51,6 +51,7 @@ public class MessageHandler {
     private static final int MAX_BIT_RATE = 2 * 1024 * 1024;
     private int f_idx = 1;
     private boolean isDefaultImage = false;
+    private ByteArrayOutputStream byteArrayOutputStream;
 
     @Autowired
     private WebRtcTurnConfig webRtcTurnConfig;
@@ -102,9 +103,11 @@ public class MessageHandler {
         getContextAndRunAsync(client.getSessionId(), context -> context.executeInLock(() -> {
             log.info("Create rtc core...");
             this.isDefaultImage = false;
+            byteArrayOutputStream = new ByteArrayOutputStream();
             this.f_idx = 1;
             try {
-                readFramesAsStreamJpeg.init("rtp://192.168.1.191:1240");
+                readFramesAsStreamJpeg.init("rtp://192.168.1.191:1240", byteArrayOutputStream);
+
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -166,12 +169,12 @@ public class MessageHandler {
 
                 @Override
                 public int getWidth() {
-                    return 1920;
+                    return 1280;
                 }
 
                 @Override
                 public int getHeight() {
-                    return 1080;
+                    return 720;
                 }
 
                 @Override
@@ -181,14 +184,13 @@ public class MessageHandler {
 
                 @Override
                 public VideoFrame capture() {
-
-                    ByteArrayOutputStream byteArrayOutputStream = readFramesAsStreamJpeg.getByteArrayOutputStream();
                     try (InputStream imageStream = new ByteArrayInputStream(byteArrayOutputStream.toByteArray())) {
                         sourceBuffer = ByteBuffer.allocateDirect(imageStream.available());
                         totalSize = 0;
                         byte[] tmp = new byte[1024];
                         while (imageStream.available() > 0) {
                             int readSize = imageStream.read(tmp);
+                            byteArrayOutputStream.reset();
                             if (readSize <= 0) {
                                 break;
                             }
@@ -200,8 +202,6 @@ public class MessageHandler {
                         isDefaultImage = true;
                         return new VideoFrame(0, System.currentTimeMillis(), sourceBuffer, totalSize);
                     }
-
-                    byteArrayOutputStream.reset();
 
                     return new VideoFrame(0, System.currentTimeMillis(), sourceBuffer, totalSize);
 

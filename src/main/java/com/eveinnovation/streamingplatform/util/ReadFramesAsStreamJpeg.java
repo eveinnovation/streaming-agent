@@ -26,25 +26,21 @@ import static org.bytedeco.ffmpeg.global.avutil.*;
 @Component
 public class ReadFramesAsStreamJpeg {
 
-    private final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-
-    public ByteArrayOutputStream getByteArrayOutputStream() {
-        return byteArrayOutputStream;
-    }
 
 
-    public static void main(String[] args) throws IOException, InterruptedException {
+
+    public static void main(String[] args) throws Exception {
         ReadFramesAsStreamJpeg r = new ReadFramesAsStreamJpeg();
-        r.init("rtp://192.168.1.191:1240");
+//        r.init("rtp://192.168.1.191:1240", ByteArrayOutputStream byteArrayOutputStream);
     }
 
-    public  void init(String source) {
+    public  void init(String source, ByteArrayOutputStream byteArrayOutputStream) throws Exception {
 
         ExecutorService executor = Executors.newFixedThreadPool(1);
 
         Runnable runnableTask = () -> {
             try {
-                ReadFramesAsStreamJpeg.write(source, byteArrayOutputStream);
+                ReadFramesAsStreamJpeg.test(source, byteArrayOutputStream);
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -56,9 +52,6 @@ public class ReadFramesAsStreamJpeg {
     static Map<Pointer, OutputStream> outputStreams = Collections.synchronizedMap(new HashMap<>());
     static ReadFramesAsStreamJpeg.WriteCallback writeCallback = new ReadFramesAsStreamJpeg.WriteCallback().retainReference();
 
-    public static void write(String inputFile, OutputStream outputStream) throws Exception {
-        ReadFramesAsStreamJpeg.test(inputFile, outputStream);
-    }
 
     static void save_frame(AVFrame pFrame, int width, int height, OutputStream outputStream) {
 
@@ -88,14 +81,16 @@ public class ReadFramesAsStreamJpeg {
         AVCodecContext pCodecCtx = avcodec_alloc_context3(codec);
 
         pCodecCtx.width(width);
+        pCodecCtx.qmin(2);
+        pCodecCtx.qmax(3);
         pCodecCtx.height(height);
         pCodecCtx.codec_id(pFormatCtx.oformat().video_codec());
         AVRational ratio = new AVRational();
         ratio.num(1);
         ratio.den(24);
         pCodecCtx.time_base(ratio);
-//        pCodecCtx.framerate(ratio);
-//        pCodecCtx.bit_rate(1000000);
+        pCodecCtx.framerate(ratio);
+        pCodecCtx.bit_rate(1000000);
         pCodecCtx.flags(AV_CODEC_FLAG_QSCALE);
         pCodecCtx.pix_fmt(AV_PIX_FMT_YUVJ420P);
         pCodecCtx.global_quality(FF_QP2LAMBDA);
@@ -151,7 +146,7 @@ public class ReadFramesAsStreamJpeg {
         AVPacket pkt = new AVPacket();
 
         AVDictionary metadata = new AVDictionary();
-        av_dict_set(metadata, "buffer_size", "10000000", 0);
+        av_dict_set(metadata, "buffer_size", "1500000", 0);
         av_dict_set(metadata, "fflags", "discardcorrupt", 0);
 
         ret = avformat_open_input(fmt_ctx, file, null, metadata);
@@ -237,9 +232,7 @@ public class ReadFramesAsStreamJpeg {
                 byte[] b = new byte[buf_size];
                 OutputStream os = outputStreams.get(opaque);
                 buf.get(b, 0, buf_size);
-
                 os.write(b, 0, buf_size);
-
                 return buf_size;
             } catch (Throwable t) {
                 System.err.println("Error on OutputStream.write(): " + t);
