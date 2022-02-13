@@ -18,11 +18,10 @@ import static org.bytedeco.ffmpeg.global.avcodec.*;
 import static org.bytedeco.ffmpeg.global.avformat.*;
 import static org.bytedeco.ffmpeg.global.avutil.*;
 import static org.bytedeco.ffmpeg.global.swscale.*;
-
 public class ReadFewFrame {
 
     public static void main(String[] args) throws Exception {
-        ReadFewFrame.test("rtp://192.168.1.191:1240");
+        ReadFewFrame.test("http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4");
     }
 
 
@@ -133,16 +132,17 @@ public class ReadFewFrame {
         i = 0;
         int ret1 = -1, ret2 = -1, fi = -1;
         while (av_read_frame(fmt_ctx, pkt) >= 0) {
-
+            if (pkt.stream_index() == v_stream_idx) {
                 ret1 = avcodec_send_packet(codec_ctx, pkt);
                 ret2 = avcodec_receive_frame(codec_ctx, frm);
                 System.out.printf("ret1 %d ret2 %d\n", ret1, ret2);
                 // avcodec_decode_video2(codec_ctx, frm, fi, pkt);
 
-            // if not check ret2, error occur [swscaler @ 0x1cb3c40] bad src image pointers
-            // ret2 same as fi
-            // if (fi && ++i <= 5) {
-            if (ret2 >= 0 && ++i <= 100) {
+
+                // if not check ret2, error occur [swscaler @ 0x1cb3c40] bad src image pointers
+                // ret2 same as fi
+                // if (fi && ++i <= 5) {
+
                 sws_scale(
                         sws_ctx,
                         frm.data(),
@@ -155,11 +155,18 @@ public class ReadFewFrame {
 
                 save_frame(pFrameRGB, codec_ctx.width(), codec_ctx.height(), i);
                 // save_frame(frm, codec_ctx.width(), codec_ctx.height(), i);
+                System.out.println("INDEX---"+i);
+
+                ++i;
+
+                if (i >= 100) {
+                    break;
+                }
+
             }
+
             av_packet_unref(pkt);
-            if (i >= 100) {
-                break;
-            }
+
         }
 
         av_frame_free(frm);

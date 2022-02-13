@@ -20,7 +20,7 @@ import static org.bytedeco.ffmpeg.global.avutil.*;
 public class ReadFrameAsJpeg {
 
     public static void main(String[] args) throws Exception {
-        ReadFrameAsJpeg.test("rtp://192.168.1.191:1240");
+        ReadFrameAsJpeg.test("http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4");
     }
 
     static void save_frame(AVFrame pFrame, int width, int height, int f_idx) throws IOException {
@@ -173,8 +173,6 @@ public class ReadFrameAsJpeg {
         i = 0;
         int ret1 = -1, ret2 = -1, fi = -1;
         while (av_read_frame(fmt_ctx, pkt) >= 0) {
-
-
             if (pkt.stream_index() == v_stream_idx) {
                 ret1 = avcodec_send_packet(codec_ctx, pkt);
                 ret2 = avcodec_receive_frame(codec_ctx, frm);
@@ -187,7 +185,7 @@ public class ReadFrameAsJpeg {
                     save_frame(frm, codec_ctx.width(), codec_ctx.height(), i);
                 }
 
-                if (i >= 1000) {
+                if (i >= 100) {
                     break;
                 }
             }
