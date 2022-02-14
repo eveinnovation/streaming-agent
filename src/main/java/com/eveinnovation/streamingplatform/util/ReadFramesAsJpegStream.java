@@ -1,6 +1,5 @@
 package com.eveinnovation.streamingplatform.util;
 
-import bbm.webrtc.rtc4j.model.VideoFrame;
 import org.bytedeco.ffmpeg.avcodec.AVCodec;
 import org.bytedeco.ffmpeg.avcodec.AVCodecContext;
 import org.bytedeco.ffmpeg.avcodec.AVPacket;
@@ -14,7 +13,6 @@ import org.bytedeco.javacpp.PointerPointer;
 import org.springframework.stereotype.Component;
 
 import java.io.*;
-import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -24,15 +22,8 @@ import static org.bytedeco.ffmpeg.global.avformat.*;
 import static org.bytedeco.ffmpeg.global.avutil.*;
 
 @Component
-public class ReadFramesAsStreamJpeg {
+public class ReadFramesAsJpegStream {
 
-
-
-
-    public static void main(String[] args) throws Exception {
-        ReadFramesAsStreamJpeg r = new ReadFramesAsStreamJpeg();
-//        r.init("rtp://192.168.1.191:1240", ByteArrayOutputStream byteArrayOutputStream);
-    }
 
     public  void init(String source, ByteArrayOutputStream byteArrayOutputStream) throws Exception {
 
@@ -40,7 +31,7 @@ public class ReadFramesAsStreamJpeg {
 
         Runnable runnableTask = () -> {
             try {
-                ReadFramesAsStreamJpeg.test(source, byteArrayOutputStream);
+                ReadFramesAsJpegStream.test(source, byteArrayOutputStream);
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -48,9 +39,9 @@ public class ReadFramesAsStreamJpeg {
         executor.submit(runnableTask);
     }
 
-    static ReadFramesAsStreamJpeg.SeekCallback seekCallback = new ReadFramesAsStreamJpeg.SeekCallback().retainReference();
+    static ReadFramesAsJpegStream.SeekCallback seekCallback = new ReadFramesAsJpegStream.SeekCallback().retainReference();
     static Map<Pointer, OutputStream> outputStreams = Collections.synchronizedMap(new HashMap<>());
-    static ReadFramesAsStreamJpeg.WriteCallback writeCallback = new ReadFramesAsStreamJpeg.WriteCallback().retainReference();
+    static ReadFramesAsJpegStream.WriteCallback writeCallback = new ReadFramesAsJpegStream.WriteCallback().retainReference();
 
 
     static void save_frame(AVFrame pFrame, int width, int height, OutputStream outputStream) {
@@ -61,7 +52,7 @@ public class ReadFramesAsStreamJpeg {
         pFormatCtx.oformat(av_guess_format("mjpeg", null, null));
 
         Seek_Pointer_long_int seek = outputStream instanceof Seekable ? seekCallback : null;
-        AVIOContext avio = avio_alloc_context(new BytePointer(av_malloc(1024)), 1024, 1, pFormatCtx, null, writeCallback, seek);
+        AVIOContext avio = avio_alloc_context(new BytePointer(av_malloc(1920*1080*3)), 1920*1080*3, 1, pFormatCtx, null, writeCallback, seek);
         pFormatCtx.pb(avio);
 
         outputStreams.put(pFormatCtx, outputStream);
@@ -229,10 +220,11 @@ public class ReadFramesAsStreamJpeg {
         @Override
         public int call(Pointer opaque, BytePointer buf, int buf_size) {
             try {
-                byte[] b = new byte[buf_size];
+                byte[] b = new byte[1920*1080*3];
                 OutputStream os = outputStreams.get(opaque);
                 buf.get(b, 0, buf_size);
                 os.write(b, 0, buf_size);
+                os.flush();
                 return buf_size;
             } catch (Throwable t) {
                 System.err.println("Error on OutputStream.write(): " + t);

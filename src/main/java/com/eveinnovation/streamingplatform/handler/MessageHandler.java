@@ -1,25 +1,26 @@
 package com.eveinnovation.streamingplatform.handler;
 
-import com.eveinnovation.streamingplatform.common.Constants;
-import com.eveinnovation.streamingplatform.common.NamedThreadFactory;
-import com.eveinnovation.streamingplatform.config.WebRtcTurnConfig;
-import com.eveinnovation.streamingplatform.use.UseContext;
 import bbm.webrtc.rtc4j.core.DataChannel;
 import bbm.webrtc.rtc4j.core.RTC;
 import bbm.webrtc.rtc4j.core.audio.AudioCapturer;
 import bbm.webrtc.rtc4j.core.observer.PeerConnectionObserver;
 import bbm.webrtc.rtc4j.core.video.VideoCapturer;
-import bbm.webrtc.rtc4j.model.DataBuffer;
-import bbm.webrtc.rtc4j.model.DataChannelConfig;
-import bbm.webrtc.rtc4j.model.IceCandidate;
-import bbm.webrtc.rtc4j.model.SessionDescription;
-import bbm.webrtc.rtc4j.model.SignalingState;
-import bbm.webrtc.rtc4j.model.VideoFrame;
+import bbm.webrtc.rtc4j.model.*;
 import com.corundumstudio.socketio.SocketIOClient;
 import com.corundumstudio.socketio.annotation.OnDisconnect;
 import com.corundumstudio.socketio.annotation.OnEvent;
+import com.eveinnovation.streamingplatform.common.Constants;
+import com.eveinnovation.streamingplatform.common.NamedThreadFactory;
+import com.eveinnovation.streamingplatform.config.WebRtcTurnConfig;
+import com.eveinnovation.streamingplatform.service.FrameService;
+import com.eveinnovation.streamingplatform.use.UseContext;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
-import java.io.*;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Objects;
@@ -28,11 +29,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-
-import com.eveinnovation.streamingplatform.util.ReadFramesAsStreamJpeg;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 /**
  * @author bbm
@@ -48,16 +44,13 @@ public class MessageHandler {
     private static final int MIN_PORT = 50000;
     private static final int MAX_PORT = 51000;
     private static final boolean HARDWARE_ACCELERATE = true;
-    private static final int MAX_BIT_RATE = 2 * 1024 * 1024;
-    private int f_idx = 1;
-    private boolean isDefaultImage = false;
-    private ByteArrayOutputStream byteArrayOutputStream;
+    private static final int MAX_BIT_RATE = 1920 * 1080 * 3;
 
     @Autowired
     private WebRtcTurnConfig webRtcTurnConfig;
 
     @Autowired
-    private ReadFramesAsStreamJpeg readFramesAsStreamJpeg;
+    private FrameService frameService;
 
 
     private final Map<UUID, UseContext> useContextMap = new ConcurrentHashMap<>();
@@ -83,6 +76,7 @@ public class MessageHandler {
             if (!Objects.isNull(previousContext)) {
                 stop(previousContext);
             }
+            frameService.close();
         }
     }
 
@@ -101,16 +95,9 @@ public class MessageHandler {
     @OnEvent(Constants.BEGIN_WEB_RTC)
     public void beginWebRtc(SocketIOClient client) {
         getContextAndRunAsync(client.getSessionId(), context -> context.executeInLock(() -> {
+            log.info("Start video frame grabber...");
+            frameService.grab();
             log.info("Create rtc core...");
-            this.isDefaultImage = false;
-            byteArrayOutputStream = new ByteArrayOutputStream();
-            this.f_idx = 1;
-            try {
-                readFramesAsStreamJpeg.init("rtp://192.168.1.191:1240", byteArrayOutputStream);
-
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
             context.setRtc(new RTC(new AudioCapturer() {
 
                 private volatile InputStream testAudio;
@@ -169,12 +156,12 @@ public class MessageHandler {
 
                 @Override
                 public int getWidth() {
-                    return 1280;
+                    return 1920;
                 }
 
                 @Override
                 public int getHeight() {
-                    return 720;
+                    return 1080;
                 }
 
                 @Override
@@ -184,13 +171,12 @@ public class MessageHandler {
 
                 @Override
                 public VideoFrame capture() {
-                    try (InputStream imageStream = new ByteArrayInputStream(byteArrayOutputStream.toByteArray())) {
+                    try (InputStream imageStream = new ByteArrayInputStream(frameService.getByteArrayOutputStream().toByteArray())) {
                         sourceBuffer = ByteBuffer.allocateDirect(imageStream.available());
                         totalSize = 0;
                         byte[] tmp = new byte[1024];
                         while (imageStream.available() > 0) {
                             int readSize = imageStream.read(tmp);
-                            byteArrayOutputStream.reset();
                             if (readSize <= 0) {
                                 break;
                             }
@@ -199,9 +185,10 @@ public class MessageHandler {
                         }
                     } catch (Exception e) {
                         e.printStackTrace();
-                        isDefaultImage = true;
                         return new VideoFrame(0, System.currentTimeMillis(), sourceBuffer, totalSize);
                     }
+
+                    frameService.clean();
 
                     return new VideoFrame(0, System.currentTimeMillis(), sourceBuffer, totalSize);
 
@@ -316,13 +303,5 @@ public class MessageHandler {
 
     interface Function {
         void apply(UseContext useContext);
-    }
-
-    private String getFrameImage() {
-        if (!isDefaultImage) {
-            return String.format("/home/ovidiu/test-out/frame%d_.jpg", f_idx++);
-        } else {
-            return "/home/ovidiu/test-out/output.jpg";
-        }
     }
 }
