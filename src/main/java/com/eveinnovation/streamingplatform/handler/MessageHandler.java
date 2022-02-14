@@ -234,7 +234,7 @@ public class MessageHandler {
 
 
                                 byteArrayOutputStream.flush();
-                                byteArrayOutputStream.reset();
+
                                 return new VideoFrame(0, System.currentTimeMillis(), sourceBuffer, totalSize);
                             }
                         }
