@@ -7,15 +7,18 @@ import static com.eveinnovation.streamingplatform.util.FFmpeg4VideoImageGrabber.
 
 public class Main {
 
+    public static int width=1920;
+    public static int height=1080;
+    public static int size = width*height*3;
+
     public static void write(OutputStream outputStream) throws IOException {
-        String url = "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
+//        String url = "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
+        String url = "rtsp://ovidiu:parola86@192.168.1.182/stream1";
         bytesImageSample3(url, 5, 100, outputStream);
         outputStream.close();
     }
 
     public static void read(InputStream inputStream) {
-
-        int size = 1280 * 720 * 3;
 
         try {
             ByteArrayOutputStream buffer = new ByteArrayOutputStream();
@@ -26,11 +29,11 @@ public class Main {
 
             while ((nRead = inputStream.read(data, 0, data.length)) != -1) {
                 buffer.write(data, 0, nRead);
-                if (buffer.size() == size) {
+                if (buffer.size() == Main.size) {
                     String filename = String.format("frame%d_.jpg", f_idx);
 
                     byte[] img = buffer.toByteArray();
-                    BufferedImage image = JavaImgConverter.BGR2BufferedImage(img, 1280, 720);
+                    BufferedImage image = JavaImgConverter.BGR2BufferedImage(img, width, height);
 
                     JavaImgConverter.saveImage(image, DETAULT_FORMAT, filename);
                     buffer.reset();
