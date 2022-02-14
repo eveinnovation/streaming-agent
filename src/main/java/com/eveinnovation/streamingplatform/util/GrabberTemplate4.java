@@ -312,10 +312,10 @@ public abstract class GrabberTemplate4 implements Grabber {
                                 i++;
 
                                 av_free(buffer);//free buffer
-
-                                if (i >= 100) {
-                                    break;
-                                }
+                                    //brake at frame 100
+//                                if (i >= 100) {
+//                                    break;
+//                                }
                             }
                         }
                     }

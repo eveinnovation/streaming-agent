@@ -7,9 +7,11 @@ import static com.eveinnovation.streamingplatform.util.FFmpeg4VideoImageGrabber.
 
 public class Main {
 
-    public static int width=1920;
-    public static int height=1080;
-    public static int size = width*height*3;
+    public static int width = 1280;
+    public static int height = 720;
+    public static int size = width * height * 3;
+    public static volatile ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+    public static int f_idx = 0;
 
     public static void write(OutputStream outputStream) throws IOException {
 //        String url = "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
@@ -19,31 +21,34 @@ public class Main {
     }
 
     public static void read(InputStream inputStream) {
-
         try {
-            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+            int readSize;
+            byte[] buffer = new byte[1024];
 
-            int nRead;
-            byte[] data = new byte[1024];
-            int f_idx = 0;
-
-            while ((nRead = inputStream.read(data, 0, data.length)) != -1) {
-                buffer.write(data, 0, nRead);
-                if (buffer.size() == Main.size) {
-                    String filename = String.format("frame%d_.jpg", f_idx);
-
-                    byte[] img = buffer.toByteArray();
-                    BufferedImage image = JavaImgConverter.BGR2BufferedImage(img, width, height);
-
-                    JavaImgConverter.saveImage(image, DETAULT_FORMAT, filename);
-                    buffer.reset();
-                    f_idx++;
+            while ((readSize = inputStream.read(buffer, 0, buffer.length)) != -1) {
+                byteArrayOutputStream.write(buffer, 0, readSize);
+                if (byteArrayOutputStream.size() == Main.size) {
+                    saveFrame();
+                    byteArrayOutputStream.flush();
                 }
             }
         } catch (IOException x) {
             x.printStackTrace();
         }
+    }
 
+    private static int saveFrame() throws IOException {
+        if (byteArrayOutputStream.size() == Main.size) {
+            String filename = String.format("frame%d_.jpg", f_idx);
+
+            byte[] img = byteArrayOutputStream.toByteArray();
+            BufferedImage image = JavaImgConverter.BGR2BufferedImage(img, width, height);
+
+            JavaImgConverter.saveImage(image, DETAULT_FORMAT, filename);
+            f_idx++;
+            byteArrayOutputStream.reset();
+        }
+        return f_idx;
     }
 
 
@@ -52,38 +57,22 @@ public class Main {
         final PipedOutputStream out = new PipedOutputStream();
         final PipedInputStream in = new PipedInputStream(out);
 
-        Runnable runA = new Runnable() {
-            public void run() {
-                try {
-                    write(out);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
+        Runnable runA = () -> {
+            try {
+                write(out);
+            } catch (IOException e) {
+                e.printStackTrace();
             }
         };
 
         Thread threadA = new Thread(runA, "threadA");
         threadA.start();
 
-        Runnable runB = new Runnable() {
-            public void run() {
-                read(in);
-            }
-        };
-
-        Thread threadB = new Thread(runB, "threadB");
-        threadB.start();
-
+        read(in);
     }
 
-    public static byte[][] bytesImageSample3(String url, int sum, int interval, OutputStream outputStream) throws IOException {
+    public static void bytesImageSample3(String url, int sum, int interval, OutputStream outputStream) throws IOException {
         FFmpeg4VideoImageGrabber grabber = new FFmpeg4VideoImageGrabber();
-        return grabber.grabBytes(url, sum, interval, outputStream);
-    }
-
-    public static String base64ImageSample3(String url) throws IOException {
-        FFmpeg4VideoImageGrabber grabber = new FFmpeg4VideoImageGrabber();
-        //默认格式是jpg
-        return grabber.shotAndGetBase64Image(url, "test1.jpg");
+        grabber.grabBytes(url, sum, interval, outputStream);
     }
 }
