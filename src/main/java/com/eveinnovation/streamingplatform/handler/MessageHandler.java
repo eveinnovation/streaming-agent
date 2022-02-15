@@ -40,10 +40,10 @@ public class MessageHandler {
 
     private static final int THREAD_SIZE = 10;
     //aici white list
-    private static final String WHITE_PRIVATE_IP_PREFIX = "19";
+    private static final String WHITE_PRIVATE_IP_PREFIX = "192.168.1.";
     private static final int MIN_PORT = 50000;
     private static final int MAX_PORT = 51000;
-    private static final boolean HARDWARE_ACCELERATE = true;
+    private static final boolean HARDWARE_ACCELERATE = false;
     private static final int MAX_BIT_RATE = 1920 * 1080 * 3;
 
     @Autowired
@@ -57,9 +57,7 @@ public class MessageHandler {
     private final ThreadPoolExecutor executor;
 
     public MessageHandler() {
-        executor = new ThreadPoolExecutor(
-                THREAD_SIZE, THREAD_SIZE,
-                Integer.MAX_VALUE, TimeUnit.SECONDS,
+        executor = new ThreadPoolExecutor(THREAD_SIZE, THREAD_SIZE, Integer.MAX_VALUE, TimeUnit.SECONDS,
                 new LinkedBlockingQueue<>(), new NamedThreadFactory("Message", THREAD_SIZE));
     }
 

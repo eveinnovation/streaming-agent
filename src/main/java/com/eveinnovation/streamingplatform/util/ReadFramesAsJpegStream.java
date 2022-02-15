@@ -52,7 +52,7 @@ public class ReadFramesAsJpegStream {
         pFormatCtx.oformat(av_guess_format("mjpeg", null, null));
 
         Seek_Pointer_long_int seek = outputStream instanceof Seekable ? seekCallback : null;
-        AVIOContext avio = avio_alloc_context(new BytePointer(av_malloc(1920*1080*3)), 1920*1080*3, 1, pFormatCtx, null, writeCallback, seek);
+        AVIOContext avio = avio_alloc_context(new BytePointer(av_malloc(1920*1080*24)), 1920*1080*24, 1, pFormatCtx, null, writeCallback, seek);
         pFormatCtx.pb(avio);
 
         outputStreams.put(pFormatCtx, outputStream);
@@ -130,7 +130,6 @@ public class ReadFramesAsJpegStream {
     }
 
     public static void test(String file, OutputStream outputStream) throws Exception {
-        System.out.println("Read few frame and write to image");
 
         int ret, i, v_stream_idx = -1;
         AVFormatContext fmt_ctx = new AVFormatContext(null);
@@ -220,7 +219,7 @@ public class ReadFramesAsJpegStream {
         @Override
         public int call(Pointer opaque, BytePointer buf, int buf_size) {
             try {
-                byte[] b = new byte[1920*1080*3];
+                byte[] b = new byte[buf_size];
                 OutputStream os = outputStreams.get(opaque);
                 buf.get(b, 0, buf_size);
                 os.write(b, 0, buf_size);
