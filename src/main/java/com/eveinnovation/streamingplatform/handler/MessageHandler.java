@@ -51,13 +51,10 @@ public class MessageHandler {
     private static final String WHITE_PRIVATE_IP_PREFIX = "19";
     private static final int MIN_PORT = 50000;
     private static final int MAX_PORT = 51000;
-    private static final boolean HARDWARE_ACCELERATE = true;
+    private static final boolean HARDWARE_ACCELERATE = false;
     private static final int MAX_BIT_RATE = 2 * 1024 * 1024;
     private int f_idx = 1;
     private boolean isDefaultImage = false;
-    private ByteArrayOutputStream byteArrayOutputStream;
-    private final PipedOutputStream out;
-    private final PipedInputStream in;
     private int readSize;
     private final byte[] buffer = new byte[1024];
 
@@ -72,8 +69,6 @@ public class MessageHandler {
     private final ThreadPoolExecutor executor;
 
     public MessageHandler() throws IOException {
-        this.out = new PipedOutputStream();
-        this.in = new PipedInputStream(out);
         executor = new ThreadPoolExecutor(
                 THREAD_SIZE, THREAD_SIZE,
                 Integer.MAX_VALUE, TimeUnit.SECONDS,
@@ -113,23 +108,28 @@ public class MessageHandler {
         getContextAndRunAsync(client.getSessionId(), context -> context.executeInLock(() -> {
             log.info("Create rtc core...");
             this.isDefaultImage = false;
-            byteArrayOutputStream = new ByteArrayOutputStream();
-            this.f_idx = 1;
+
+            final PipedOutputStream out = new PipedOutputStream();
+            PipedInputStream in = null;
             try {
-                Runnable runA = () -> {
-                    try {
-                        write(out);
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                };
-
-                Thread threadA = new Thread(runA, "threadA");
-                threadA.start();
-
-            } catch (Exception e) {
+                in = new PipedInputStream(out);
+            } catch (IOException e) {
                 e.printStackTrace();
             }
+
+
+            Runnable runA = () -> {
+                try {
+                    write(out);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            };
+
+            Thread threadA = new Thread(runA, "threadA");
+            threadA.start();
+
+            PipedInputStream finalIn = in;
             context.setRtc(new RTC(new AudioCapturer() {
 
                 private volatile InputStream testAudio;
@@ -204,47 +204,26 @@ public class MessageHandler {
                 @Override
                 public VideoFrame capture() {
 
-
                     try {
-                        while ((readSize = in.read(buffer, 0, buffer.length)) != -1) {
-                            byteArrayOutputStream.write(buffer, 0, readSize);
-                            if (byteArrayOutputStream.size() == Main.size) {
-                                byte[] img = byteArrayOutputStream.toByteArray();
-                                BufferedImage image = JavaImgConverter.BGR2BufferedImage(img, Main.width, Main.height);
-                                byte[] bytes = ImageUtils.toByteArray(image, "jpeg");
-
-                                try (InputStream imageStream = new ByteArrayInputStream(bytes)) {
-                                    sourceBuffer = ByteBuffer.allocateDirect(imageStream.available());
-                                    totalSize = 0;
-                                    byte[] buffer = new byte[1024];
-                                    while (imageStream.available() > 0) {
-                                        int readSize = imageStream.read(buffer);
-                                        byteArrayOutputStream.reset();
-                                        if (readSize <= 0) {
-                                            break;
-                                        }
-                                        totalSize += readSize;
-                                        sourceBuffer.put(buffer, 0, readSize);
-                                    }
-                                } catch (Exception e) {
-                                    e.printStackTrace();
-                                    isDefaultImage = true;
-                                    return new VideoFrame(0, System.currentTimeMillis(), sourceBuffer, totalSize);
+                        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+                        int readSize;
+                            byte[] buffer = new byte[1024];
+                            while ((readSize = finalIn.read(buffer, 0, buffer.length)) != -1) {
+                                byteArrayOutputStream.write(buffer, 0, readSize);
+                                if (byteArrayOutputStream.size() == Main.size) {
+                                    byte[] img = byteArrayOutputStream.toByteArray();
+                                    BufferedImage image = JavaImgConverter.BGR2BufferedImage(img, Main.width, Main.height);
+                                    byte[] bytes = ImageUtils.toByteArray(image, "jpeg");
+                                    sourceBuffer = ByteBuffer.allocateDirect(bytes.length);
+                                    sourceBuffer.put(bytes, 0,  bytes.length);
+                                    return new VideoFrame(0, System.currentTimeMillis(), sourceBuffer, Main.size);
                                 }
-
-
-                                byteArrayOutputStream.flush();
-
-                                return new VideoFrame(0, System.currentTimeMillis(), sourceBuffer, totalSize);
                             }
-                        }
 
                     } catch (IOException x) {
                         x.printStackTrace();
+                        return new VideoFrame(0, System.currentTimeMillis(), sourceBuffer, Main.size);
                     }
-
-
-
 
                     return new VideoFrame(0, System.currentTimeMillis(), sourceBuffer, totalSize);
 
@@ -358,7 +337,7 @@ public class MessageHandler {
     }
 
     public void write(OutputStream outputStream) throws IOException {
-        String url = "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
+       String url = "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
 //        String url = "rtsp://ovidiu:parola86@192.168.1.182/stream1";
         Main.bytesImageSample3(url, 5, 100, outputStream);
         outputStream.close();
