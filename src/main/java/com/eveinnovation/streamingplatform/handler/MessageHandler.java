@@ -12,13 +12,14 @@ import com.corundumstudio.socketio.annotation.OnEvent;
 import com.eveinnovation.streamingplatform.common.Constants;
 import com.eveinnovation.streamingplatform.common.NamedThreadFactory;
 import com.eveinnovation.streamingplatform.config.WebRtcTurnConfig;
-import com.eveinnovation.streamingplatform.service.FrameService;
 import com.eveinnovation.streamingplatform.use.UseContext;
+import com.eveinnovation.streamingplatform.util.ReadFramesAsJpegStream;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -49,9 +50,6 @@ public class MessageHandler {
     @Autowired
     private WebRtcTurnConfig webRtcTurnConfig;
 
-    @Autowired
-    private FrameService frameService;
-
 
     private final Map<UUID, UseContext> useContextMap = new ConcurrentHashMap<>();
     private final ThreadPoolExecutor executor;
@@ -74,7 +72,6 @@ public class MessageHandler {
             if (!Objects.isNull(previousContext)) {
                 stop(previousContext);
             }
-            frameService.close();
         }
     }
 
@@ -94,7 +91,22 @@ public class MessageHandler {
     public void beginWebRtc(SocketIOClient client) {
         getContextAndRunAsync(client.getSessionId(), context -> context.executeInLock(() -> {
             log.info("Start video frame grabber...");
-            frameService.grab();
+
+
+            final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+
+            Runnable runA = () -> {
+                try {
+                    ReadFramesAsJpegStream.init("rtsp://ovidiu:parola86@192.168.1.182/stream1", byteArrayOutputStream);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            };
+
+            Thread threadA = new Thread(runA, "threadA");
+            threadA.start();
+
+
             log.info("Create rtc core...");
             context.setRtc(new RTC(new AudioCapturer() {
 
@@ -169,7 +181,8 @@ public class MessageHandler {
 
                 @Override
                 public VideoFrame capture() {
-                    try (InputStream imageStream = new ByteArrayInputStream(frameService.getByteArrayOutputStream().toByteArray())) {
+
+                    try (InputStream imageStream = new ByteArrayInputStream(byteArrayOutputStream.toByteArray())) {
                         sourceBuffer = ByteBuffer.allocateDirect(imageStream.available());
                         totalSize = 0;
                         byte[] tmp = new byte[1024];
@@ -186,7 +199,7 @@ public class MessageHandler {
                         return new VideoFrame(0, System.currentTimeMillis(), sourceBuffer, totalSize);
                     }
 
-                    frameService.clean();
+                    byteArrayOutputStream.reset();
 
                     return new VideoFrame(0, System.currentTimeMillis(), sourceBuffer, totalSize);
 

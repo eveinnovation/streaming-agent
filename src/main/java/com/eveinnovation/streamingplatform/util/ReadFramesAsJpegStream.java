@@ -21,23 +21,8 @@ import static org.bytedeco.ffmpeg.global.avcodec.*;
 import static org.bytedeco.ffmpeg.global.avformat.*;
 import static org.bytedeco.ffmpeg.global.avutil.*;
 
-@Component
 public class ReadFramesAsJpegStream {
 
-
-    public  void init(String source, ByteArrayOutputStream byteArrayOutputStream) throws Exception {
-
-        ExecutorService executor = Executors.newFixedThreadPool(1);
-
-        Runnable runnableTask = () -> {
-            try {
-                ReadFramesAsJpegStream.test(source, byteArrayOutputStream);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        };
-        executor.submit(runnableTask);
-    }
 
     static ReadFramesAsJpegStream.SeekCallback seekCallback = new ReadFramesAsJpegStream.SeekCallback().retainReference();
     static Map<Pointer, OutputStream> outputStreams = Collections.synchronizedMap(new HashMap<>());
@@ -129,7 +114,7 @@ public class ReadFramesAsJpegStream {
         avcodec_free_context(pCodecCtx);
     }
 
-    public static void test(String file, OutputStream outputStream) throws Exception {
+    public static void init(String file, OutputStream outputStream) {
 
         int ret, i, v_stream_idx = -1;
         AVFormatContext fmt_ctx = new AVFormatContext(null);
