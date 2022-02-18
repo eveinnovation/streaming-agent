@@ -1,6 +1,5 @@
 package com.eveinnovation.streamingplatform.util;
 
-import bbm.webrtc.rtc4j.model.VideoFrame;
 import org.bytedeco.ffmpeg.avcodec.AVCodec;
 import org.bytedeco.ffmpeg.avcodec.AVCodecContext;
 import org.bytedeco.ffmpeg.avcodec.AVPacket;
@@ -13,11 +12,10 @@ import org.bytedeco.javacpp.Pointer;
 import org.bytedeco.javacpp.PointerPointer;
 import org.springframework.stereotype.Component;
 
-import java.io.*;
-import java.nio.ByteBuffer;
-import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.io.OutputStream;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.bytedeco.ffmpeg.global.avcodec.*;
 import static org.bytedeco.ffmpeg.global.avformat.*;
@@ -26,27 +24,6 @@ import static org.bytedeco.ffmpeg.global.avutil.*;
 @Component
 public class ReadFramesAsStreamJpeg {
 
-
-
-
-    public static void main(String[] args) throws Exception {
-        ReadFramesAsStreamJpeg r = new ReadFramesAsStreamJpeg();
-//        r.init("rtp://192.168.1.191:1240", ByteArrayOutputStream byteArrayOutputStream);
-    }
-
-    public  void init(String source, ByteArrayOutputStream byteArrayOutputStream) throws Exception {
-
-        ExecutorService executor = Executors.newFixedThreadPool(1);
-
-        Runnable runnableTask = () -> {
-            try {
-                ReadFramesAsStreamJpeg.test(source, byteArrayOutputStream);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        };
-        executor.submit(runnableTask);
-    }
 
     static ReadFramesAsStreamJpeg.SeekCallback seekCallback = new ReadFramesAsStreamJpeg.SeekCallback().retainReference();
     static Map<Pointer, OutputStream> outputStreams = Collections.synchronizedMap(new HashMap<>());

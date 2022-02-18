@@ -65,3 +65,7 @@ sudo sysctl -w net.core.rmem_max=16777216
 sudo sysctl -w net.core.rmem_default=16777216
 sudo sysctl -w net.core.wmem_max=16777216
 sudo sysctl -w net.core.wmem_default=16777216
+
+dev-split-streams
+
+ffmpeg -i input.mkv -map 0:v video.mp4 -map 0:a:1 audio_1.mp3 -map 0:a:3 audio_3.wav

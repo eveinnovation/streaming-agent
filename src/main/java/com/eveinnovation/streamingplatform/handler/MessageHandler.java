@@ -35,6 +35,8 @@ import com.eveinnovation.streamingplatform.util.JavaImgConverter;
 import com.eveinnovation.streamingplatform.util.Main;
 import com.eveinnovation.streamingplatform.util.ReadFramesAsStreamJpeg;
 import lombok.extern.slf4j.Slf4j;
+import org.bytedeco.javacv.Java2DFrameConverter;
+import org.bytedeco.javacv.Java2DFrameUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -55,8 +57,6 @@ public class MessageHandler {
     private static final int MAX_BIT_RATE = 2 * 1024 * 1024;
     private int f_idx = 1;
     private boolean isDefaultImage = false;
-    private int readSize;
-    private final byte[] buffer = new byte[1024];
 
     @Autowired
     private WebRtcTurnConfig webRtcTurnConfig;
@@ -121,7 +121,7 @@ public class MessageHandler {
             Runnable runA = () -> {
                 try {
                     write(out);
-                } catch (IOException e) {
+                } catch (Exception e) {
                     e.printStackTrace();
                 }
             };
@@ -129,7 +129,7 @@ public class MessageHandler {
             Thread threadA = new Thread(runA, "threadA");
             threadA.start();
 
-            PipedInputStream finalIn = in;
+            final PipedInputStream finalIn = in;
             context.setRtc(new RTC(new AudioCapturer() {
 
                 private volatile InputStream testAudio;
@@ -207,18 +207,26 @@ public class MessageHandler {
                     try {
                         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
                         int readSize;
-                            byte[] buffer = new byte[1024];
-                            while ((readSize = finalIn.read(buffer, 0, buffer.length)) != -1) {
-                                byteArrayOutputStream.write(buffer, 0, readSize);
-                                if (byteArrayOutputStream.size() == Main.size) {
-                                    byte[] img = byteArrayOutputStream.toByteArray();
+                        byte[] buffer = new byte[1024];
+
+//                        ByteBuffer byteBuffer = ByteBuffer.allocate(finalIn.available());
+//                        while (finalIn.available() > 0) {
+//                            sourceBuffer.put((byte) finalIn.read());
+//                            return new VideoFrame(0, System.currentTimeMillis(), sourceBuffer, Main.size);
+//                        }
+
+                        while ((readSize = finalIn.read(buffer, 0, buffer.length)) != -1) {
+                            byteArrayOutputStream.write(buffer, 0, readSize);
+                            if (byteArrayOutputStream.size() == Main.size) {
+                                byte[] img = byteArrayOutputStream.toByteArray();
                                     BufferedImage image = JavaImgConverter.BGR2BufferedImage(img, Main.width, Main.height);
                                     byte[] bytes = ImageUtils.toByteArray(image, "jpeg");
-                                    sourceBuffer = ByteBuffer.allocateDirect(bytes.length);
-                                    sourceBuffer.put(bytes, 0,  bytes.length);
-                                    return new VideoFrame(0, System.currentTimeMillis(), sourceBuffer, Main.size);
-                                }
+                                sourceBuffer = ByteBuffer.allocateDirect(bytes.length);
+                                sourceBuffer.put(bytes, 0, bytes.length);
+                                byteArrayOutputStream.reset();
+                                return new VideoFrame(0, System.currentTimeMillis(), sourceBuffer, bytes.length);
                             }
+                        }
 
                     } catch (IOException x) {
                         x.printStackTrace();
@@ -336,9 +344,12 @@ public class MessageHandler {
         }
     }
 
-    public void write(OutputStream outputStream) throws IOException {
-       String url = "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
-//        String url = "rtsp://ovidiu:parola86@192.168.1.182/stream1";
+    public void write(OutputStream outputStream) throws Exception {
+        String url = "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
+
+//        ReadFramesAsStreamJpeg.test(url, outputStream);
+//        outputStream.close();
+////        String url = "rtsp://ovidiu:parola86@192.168.1.182/stream1";
         Main.bytesImageSample3(url, 5, 100, outputStream);
         outputStream.close();
     }
