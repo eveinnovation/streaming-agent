@@ -7,8 +7,8 @@ import static com.eveinnovation.streamingplatform.util.FFmpeg4VideoImageGrabber.
 
 public class Main {
 
-    public static int width = 1280;
-    public static int height = 720;
+    public static int width = 1920;
+    public static int height = 1080;
     public static int size = width * height * 3;
     public static volatile ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
     public static int f_idx = 0;

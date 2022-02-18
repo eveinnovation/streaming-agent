@@ -219,8 +219,8 @@ public class MessageHandler {
                             byteArrayOutputStream.write(buffer, 0, readSize);
                             if (byteArrayOutputStream.size() == Main.size) {
                                 byte[] img = byteArrayOutputStream.toByteArray();
-                                    BufferedImage image = JavaImgConverter.BGR2BufferedImage(img, Main.width, Main.height);
-                                    byte[] bytes = ImageUtils.toByteArray(image, "jpeg");
+                                BufferedImage image = JavaImgConverter.BGR2BufferedImage(img, Main.width, Main.height);
+                                byte[] bytes = ImageUtils.toByteArray(image, "jpeg");
                                 sourceBuffer = ByteBuffer.allocateDirect(bytes.length);
                                 sourceBuffer.put(bytes, 0, bytes.length);
                                 byteArrayOutputStream.reset();
@@ -345,7 +345,8 @@ public class MessageHandler {
     }
 
     public void write(OutputStream outputStream) throws Exception {
-        String url = "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
+//        String url = "rtsp://ovidiu:parola86@192.168.1.182/stream1";
+        String url = "rtp://192.168.1.191:1240";
 
 //        ReadFramesAsStreamJpeg.test(url, outputStream);
 //        outputStream.close();

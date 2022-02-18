@@ -80,8 +80,12 @@ public abstract class GrabberTemplate4 implements Grabber {
 
 
     protected AVFormatContext openInput(String url) throws FileNotOpenException {
+        AVDictionary metadata = new AVDictionary();
+        av_dict_set(metadata, "buffer_size", "1500000", 0);
+        av_dict_set(metadata, "fflags", "discardcorrupt", 0);
+
         AVFormatContext pFormatCtx = new AVFormatContext(null);
-        if (avformat_open_input(pFormatCtx, url, null, null) == 0) {
+        if (avformat_open_input(pFormatCtx, url, null, metadata) == 0) {
             return pFormatCtx;
         }
         throw new FileNotOpenException("Didn't open video file");

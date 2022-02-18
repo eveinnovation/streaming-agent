@@ -126,7 +126,7 @@ public class ReadFewFrame {
             throw new IllegalStateException();
         }
 
-        av_image_fill_arrays(pFrameRGB.data(), pFrameRGB.linesize(),
+        av_image_fill_arrays(frm.data(), pFrameRGB.linesize(),
                 buffer, AV_PIX_FMT_RGB24, codec_ctx.width(), codec_ctx.height(), 1);
 
         i = 0;
