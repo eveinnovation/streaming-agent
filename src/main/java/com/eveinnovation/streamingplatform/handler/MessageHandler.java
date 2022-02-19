@@ -166,12 +166,12 @@ public class MessageHandler {
 
                 @Override
                 public int getWidth() {
-                    return 1920;
+                    return 1280;
                 }
 
                 @Override
                 public int getHeight() {
-                    return 1080;
+                    return 720;
                 }
 
                 @Override
