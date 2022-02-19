@@ -37,7 +37,7 @@ public class ReadFramesAsJpegStream {
         pFormatCtx.oformat(av_guess_format("mjpeg", null, null));
 
         Seek_Pointer_long_int seek = outputStream instanceof Seekable ? seekCallback : null;
-        AVIOContext avio = avio_alloc_context(new BytePointer(av_malloc(1920*1080*60)), 1920*1080*60, 1, pFormatCtx, null, writeCallback, seek);
+        AVIOContext avio = avio_alloc_context(new BytePointer(av_malloc(1920*1080*24)), 1920*1080*24, 1, pFormatCtx, null, writeCallback, seek);
         pFormatCtx.pb(avio);
 
         outputStreams.put(pFormatCtx, outputStream);

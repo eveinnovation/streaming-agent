@@ -97,7 +97,8 @@ public class MessageHandler {
 
             Runnable runA = () -> {
                 try {
-                    ReadFramesAsJpegStream.init("rtsp://ovidiu:parola86@192.168.1.182/stream1", byteArrayOutputStream);
+                   ReadFramesAsJpegStream.init("rtsp://ovidiu:parola86@192.168.1.182/stream1", byteArrayOutputStream);
+//                    ReadFramesAsJpegStream.init("rtp://192.168.1.191:1240", byteArrayOutputStream);
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -166,12 +167,12 @@ public class MessageHandler {
 
                 @Override
                 public int getWidth() {
-                    return 1280;
+                    return 1920;
                 }
 
                 @Override
                 public int getHeight() {
-                    return 720;
+                    return 1080;
                 }
 
                 @Override
