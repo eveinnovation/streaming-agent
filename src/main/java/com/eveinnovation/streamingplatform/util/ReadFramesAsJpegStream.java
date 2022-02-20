@@ -10,12 +10,11 @@ import org.bytedeco.ffmpeg.avutil.AVRational;
 import org.bytedeco.javacpp.BytePointer;
 import org.bytedeco.javacpp.Pointer;
 import org.bytedeco.javacpp.PointerPointer;
-import org.springframework.stereotype.Component;
 
 import java.io.*;
+import java.time.Instant;
+import java.time.LocalTime;
 import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import static org.bytedeco.ffmpeg.global.avcodec.*;
 import static org.bytedeco.ffmpeg.global.avformat.*;
@@ -28,19 +27,30 @@ public class ReadFramesAsJpegStream {
     static Map<Pointer, OutputStream> outputStreams = Collections.synchronizedMap(new HashMap<>());
     static ReadFramesAsJpegStream.WriteCallback writeCallback = new ReadFramesAsJpegStream.WriteCallback().retainReference();
 
+    static void getAudioFrame(AVFrame pFrame, OutputStream audioOutputStream) {
+        int ret;
 
-    static void save_frame(AVFrame pFrame, int width, int height, OutputStream outputStream) {
+        AVFormatContext pFormatCtx = avformat_alloc_context();
+        pFormatCtx.oformat(av_guess_format("wav", null, null));
+
+        Seek_Pointer_long_int seek = audioOutputStream instanceof Seekable ? seekCallback : null;
+        AVIOContext avio = avio_alloc_context(new BytePointer(av_malloc(1024)), 1024, 1, pFormatCtx, null, writeCallback, seek);
+        pFormatCtx.pb(avio);
+    }
+
+
+    static void getVideoFrame(AVFrame pFrame, int width, int height, OutputStream videoOutputStream) {
 
         int ret;
 
         AVFormatContext pFormatCtx = avformat_alloc_context();
         pFormatCtx.oformat(av_guess_format("mjpeg", null, null));
 
-        Seek_Pointer_long_int seek = outputStream instanceof Seekable ? seekCallback : null;
-        AVIOContext avio = avio_alloc_context(new BytePointer(av_malloc(1920*1080*24)), 1920*1080*24, 1, pFormatCtx, null, writeCallback, seek);
+        Seek_Pointer_long_int seek = videoOutputStream instanceof Seekable ? seekCallback : null;
+        AVIOContext avio = avio_alloc_context(new BytePointer(av_malloc(1920 * 1080 * 24)), 1920 * 1080 * 24, 1, pFormatCtx, null, writeCallback, seek);
         pFormatCtx.pb(avio);
 
-        outputStreams.put(pFormatCtx, outputStream);
+        outputStreams.put(pFormatCtx, videoOutputStream);
 
         AVCodec codec = avcodec_find_encoder(AV_CODEC_ID_MJPEG);
         if (codec == null) {
@@ -114,7 +124,7 @@ public class ReadFramesAsJpegStream {
         avcodec_free_context(pCodecCtx);
     }
 
-    public static void init(String file, OutputStream outputStream) {
+    public static void init(String file, OutputStream videoOutputStream, OutputStream audioOutputStream) {
 
         int ret, i, v_stream_idx = -1;
         AVFormatContext fmt_ctx = new AVFormatContext(null);
@@ -155,6 +165,7 @@ public class ReadFramesAsJpegStream {
         AVCodecContext codec_ctx = avcodec_alloc_context3(null);
         avcodec_parameters_to_context(codec_ctx, fmt_ctx.streams(v_stream_idx).codecpar());
 
+
         AVCodec codec = avcodec_find_decoder(codec_ctx.codec_id());
         if (codec == null) {
             System.out.println("Unsupported codec for video file");
@@ -168,16 +179,26 @@ public class ReadFramesAsJpegStream {
 
         AVFrame frm = av_frame_alloc();
 
-        // Allocate an AVFrame structure
-        AVFrame pFrameRGB = av_frame_alloc();
-        if (pFrameRGB == null) {
-            System.exit(-1);
-        }
-
         i = 0;
         int ret1 = -1, ret2 = -1, fi = -1;
-        while (av_read_frame(fmt_ctx, pkt) >= 0) {
-            if (pkt.stream_index() == v_stream_idx) {
+        long lastTime = System.currentTimeMillis();
+
+        while (true) {
+
+
+            ret = av_read_frame(fmt_ctx, pkt);
+
+            AVStream inStream = fmt_ctx.streams(pkt.stream_index());
+            if (inStream.codecpar().codec_type() == AVMEDIA_TYPE_VIDEO) {
+
+//                try {
+//                    int frameDuration = 1000 / inStream.avg_frame_rate().num();
+//                    long actualDelay = System.currentTimeMillis() - lastTime;
+//                    Thread.sleep(frameDuration - actualDelay);
+//                } catch (InterruptedException e) {
+//                    e.printStackTrace();
+//                }
+
                 ret1 = avcodec_send_packet(codec_ctx, pkt);
                 ret2 = avcodec_receive_frame(codec_ctx, frm);
                 if (ret1 < 0) {
@@ -186,10 +207,14 @@ public class ReadFramesAsJpegStream {
 
                 if (ret2 >= 0) {
                     ++i;
-                    save_frame(frm, codec_ctx.width(), codec_ctx.height(), outputStream);
+                    getVideoFrame(frm, codec_ctx.width(), codec_ctx.height(), videoOutputStream);
                 }
+            } else if (inStream.codecpar().codec_type() == AVMEDIA_TYPE_AUDIO) {
+                getAudioFrame(frm, audioOutputStream);
             }
             av_packet_unref(pkt);
+            lastTime = System.currentTimeMillis();
+
         }
 
         av_frame_free(frm);
@@ -208,7 +233,6 @@ public class ReadFramesAsJpegStream {
                 OutputStream os = outputStreams.get(opaque);
                 buf.get(b, 0, buf_size);
                 os.write(b, 0, buf_size);
-
                 return buf_size;
             } catch (Throwable t) {
                 System.err.println("Error on OutputStream.write(): " + t);

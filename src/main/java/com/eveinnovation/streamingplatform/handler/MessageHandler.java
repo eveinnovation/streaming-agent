@@ -15,17 +15,13 @@ import com.eveinnovation.streamingplatform.config.WebRtcTurnConfig;
 import com.eveinnovation.streamingplatform.use.UseContext;
 import com.eveinnovation.streamingplatform.util.ReadFramesAsJpegStream;
 import lombok.extern.slf4j.Slf4j;
+import org.bytedeco.javacpp.Pointer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.nio.ByteBuffer;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -46,6 +42,9 @@ public class MessageHandler {
     private static final int MAX_PORT = 51000;
     private static final boolean HARDWARE_ACCELERATE = false;
     private static final int MAX_BIT_RATE = 1920 * 1080 * 3;
+
+    private static final Map<UUID, ByteArrayOutputStream> videoOutputStreams = Collections.synchronizedMap(new HashMap<>());
+    private static final Map<UUID, ByteArrayOutputStream> audioOutputStreams = Collections.synchronizedMap(new HashMap<>());
 
     @Autowired
     private WebRtcTurnConfig webRtcTurnConfig;
@@ -87,27 +86,9 @@ public class MessageHandler {
         }
     }
 
-    @OnEvent(Constants.BEGIN_WEB_RTC)
-    public void beginWebRtc(SocketIOClient client) {
+    @OnEvent(Constants.START_RECEIVING_VIDEO_AUDIO)
+    public void startReceivingVideoAudio(SocketIOClient client) {
         getContextAndRunAsync(client.getSessionId(), context -> context.executeInLock(() -> {
-            log.info("Start video frame grabber...");
-
-
-            final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-
-            Runnable runA = () -> {
-                try {
-                   ReadFramesAsJpegStream.init("rtsp://ovidiu:parola86@192.168.1.182/stream1", byteArrayOutputStream);
-//                    ReadFramesAsJpegStream.init("rtp://192.168.1.191:1240", byteArrayOutputStream);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            };
-
-            Thread threadA = new Thread(runA, "threadA");
-            threadA.start();
-
-
             log.info("Create rtc core...");
             context.setRtc(new RTC(new AudioCapturer() {
 
@@ -183,7 +164,10 @@ public class MessageHandler {
                 @Override
                 public VideoFrame capture() {
 
+                    ByteArrayOutputStream byteArrayOutputStream = videoOutputStreams.get(client.getSessionId());
+
                     try (InputStream imageStream = new ByteArrayInputStream(byteArrayOutputStream.toByteArray())) {
+                        byteArrayOutputStream.reset();
                         sourceBuffer = ByteBuffer.allocateDirect(imageStream.available());
                         totalSize = 0;
                         byte[] tmp = new byte[1024];
@@ -199,13 +183,41 @@ public class MessageHandler {
                         e.printStackTrace();
                         return new VideoFrame(0, System.currentTimeMillis(), sourceBuffer, totalSize);
                     }
-
-                    byteArrayOutputStream.reset();
-
                     return new VideoFrame(0, System.currentTimeMillis(), sourceBuffer, totalSize);
 
                 }
             }, WHITE_PRIVATE_IP_PREFIX, MIN_PORT, MAX_PORT, HARDWARE_ACCELERATE, client.getSessionId().toString()));
+
+        }));
+    }
+
+    @OnEvent(Constants.START_FFMPEG)
+    public void startFfmpeg(SocketIOClient client) {
+        log.info("Start video frame grabber...");
+
+        final ByteArrayOutputStream videoByteArrayOutputStream = new ByteArrayOutputStream();
+        final ByteArrayOutputStream audioByteArrayOutputStream = new ByteArrayOutputStream();
+
+        videoOutputStreams.put(client.getSessionId(), videoByteArrayOutputStream);
+        Runnable runA = () -> {
+            try {
+                ReadFramesAsJpegStream.init("rtsp://ovidiu:parola86@192.168.1.182/stream1", videoByteArrayOutputStream, audioByteArrayOutputStream);
+//                ReadFramesAsJpegStream.init("http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4", videoByteArrayOutputStream, audioByteArrayOutputStream);
+//                    ReadFramesAsJpegStream.init("rtp://192.168.1.191:1240", byteArrayOutputStream);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        };
+
+        Thread threadA = new Thread(runA, "threadA");
+        threadA.start();
+    }
+
+
+    @OnEvent(Constants.BEGIN_WEB_RTC)
+    public void beginWebRtc(SocketIOClient client) {
+        getContextAndRunAsync(client.getSessionId(), context -> context.executeInLock(() -> {
+
             log.info("Create peer connection...");
             context.setPeerConnection(context.getRtc().createPeerConnection(new PeerConnectionObserver() {
                 @Override

@@ -6,6 +6,8 @@ package com.eveinnovation.streamingplatform.common;
 public class Constants {
 
     public static final String BEGIN_USE = "beginUse";
+    public static final String START_FFMPEG = "startFfmpeg";
+    public static final String START_RECEIVING_VIDEO_AUDIO = "startReceivingVideoAudio";
     public static final String STOP_USE ="stopUse";
     public static final String STATUS = "status";
     public static final String BEGIN_WEB_RTC = "beginWebRtc";

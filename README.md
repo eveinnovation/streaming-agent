@@ -23,6 +23,7 @@
 - write so single image: ffmpeg -fflags discardcorrupt -i rtp://192.168.1.191:1240  -q:v 1 -f image2 -r 24 -update 1 output.jpg
 - generate video from frames: ffmpeg -framerate 24 -i frame%d_.jpg -c:v libx264 -crf 25 -vf "scale=500:500, format=yuv420p" -movflags +faststart output.ts
 - ffmpeg -fflags discardcorrupt -i rtp://192.168.1.191:1240 -q:v 1 -r 24  -f image2pipe pipe:1 > output.jpg
+- ffmpeg -i video -r 24 -c:v mjpeg -f image2pipe pipe:1 | otherapp
 
 
 
@@ -60,7 +61,7 @@ ffmpeg -f x11grab -r 15 -s 1366x768 -i :0.0+0,0 \
 -maxrate 500k -bufsize 500k \
 -pix_fmt yuv420p \
 -f mpegts 'udp://192.168.1.102:6881?pkt_size=1316'
-
+net.core.rmem_max=26214400
 sudo sysctl -w net.core.rmem_max=16777216
 sudo sysctl -w net.core.rmem_default=16777216
 sudo sysctl -w net.core.wmem_max=16777216
@@ -68,3 +69,11 @@ sudo sysctl -w net.core.wmem_default=16777216
 
 
 sysctl -w net.core.rmem_max=8388608
+
+sysctl -w net.core.rmem_max=26214400
+The default buffer size on Linux is 131071.
+
+You can also make it permanent by adding this line to /etc/sysctl.conf:
+
+net.core.rmem_max=26214400
+
