@@ -158,7 +158,7 @@ public class MessageHandler {
 
                 @Override
                 public int getFps() {
-                    return 24;
+                    return 15;
                 }
 
                 @Override
